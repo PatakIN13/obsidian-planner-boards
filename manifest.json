@@ -1,0 +1,10 @@
+{
+  "id": "planner-boards",
+  "name": "Planner Boards",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Hub dashboard with 5 board modes — daily planner, finance tracker, goals, projects, reading log. Calendar sync (ICS), dynamic dashboards, customizable dictionaries and templates.",
+  "author": "Ivan Patakin",
+  "authorUrl": "https://github.com/PatakIN13",
+  "isDesktopOnly": false
+}

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output (release artifacts — attach to GitHub Release, not commit)
+/main.js
+/styles.css
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.log
+npm-debug.log*

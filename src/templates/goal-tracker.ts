@@ -1,0 +1,57 @@
+import { PlannerSchema, ColumnDef } from '../types';
+
+export function expandGoalTracker(schema: PlannerSchema): PlannerSchema {
+  const input = schema as any;
+  const locale = input.locale || 'ru';
+  const isRu = locale === 'ru';
+
+  const statuses = input.statuses || [
+    isRu ? '⬜ Не начато' : '⬜ Not started',
+    isRu ? '🔵 В процессе' : '🔵 In progress',
+    isRu ? '✅ Достигнуто' : '✅ Achieved',
+    isRu ? '❌ Отменено' : '❌ Cancelled',
+  ];
+
+  const quarters = input.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
+
+  const columns: ColumnDef[] = [
+    { id: 'objective', label: isRu ? 'Цель (Objective)' : 'Objective', type: 'text', width: 220, frozen: true },
+    { id: 'key_result', label: isRu ? 'Ключевой результат' : 'Key Result', type: 'text', width: 220 },
+    { id: 'quarter', label: isRu ? 'Квартал' : 'Quarter', type: 'select', options: quarters },
+    { id: 'status', label: isRu ? 'Статус' : 'Status', type: 'select', options: statuses },
+    { id: 'target', label: isRu ? 'Цель (число)' : 'Target', type: 'number', min: 0 },
+    { id: 'current', label: isRu ? 'Текущий' : 'Current', type: 'number', min: 0 },
+    { id: 'progress', label: isRu ? 'Прогресс' : 'Progress', type: 'progress', min: 0, max: 100,
+      formula: 'ROUND(current / target * 100, 0)',
+      color_scale: { 0: '#ff4444', 30: '#ff8800', 70: '#44bb44', 100: '#22aa22' }
+    },
+  ];
+
+  const data: Record<string, any>[] = (input.goals || input.data || []).map((g: any) => ({
+    objective: g.objective || '',
+    key_result: g.key_result || '',
+    quarter: g.quarter || quarters[0],
+    status: g.status || statuses[0],
+    target: g.target ?? 100,
+    current: g.current ?? 0,
+    progress: 0,
+  }));
+
+  const title = input.title || `🎯 ${isRu ? 'OKR' : 'OKR'}${input.year ? ' ' + input.year : ''}`;
+
+  return {
+    type: 'grid',
+    title,
+    theme: input.theme || 'soft',
+    locale,
+    template: 'goal-tracker',
+    year: input.year,
+    goals: input.goals,
+    columns,
+    summary: [
+      { column: 'progress', formula: 'AVG(progress)', label: isRu ? 'Общий прогресс' : 'Overall' },
+      { column: 'status', formula: 'COUNTIF(status, ✅)', label: isRu ? 'Достигнуто' : 'Achieved' },
+    ],
+    data,
+  };
+}
