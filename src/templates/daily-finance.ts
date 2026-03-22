@@ -1,17 +1,16 @@
 import { PlannerSchema, ColumnDef } from '../types';
 
 export function expandDailyFinance(schema: PlannerSchema): PlannerSchema {
-  const input = schema as any;
-  const locale = input.locale || 'ru';
+  const locale = (schema.locale as string) || 'ru';
   const isRu = locale === 'ru';
-  let day = input.day;
+  let day = schema['day'] as string | Date | undefined;
   if (day instanceof Date) {
     day = day.toISOString().substring(0, 10);
   } else if (day && typeof day !== 'string') {
     day = String(day);
   }
-  const month = input.month || (day ? day.substring(0, 7) : getCurrentMonth());
-  const sections = input.sections || {};
+  const month = (schema['month'] as string) || (day ? day.substring(0, 7) : getCurrentMonth());
+  const sections = (schema.sections as Record<string, Record<string, string | number | boolean>[]>) || {};
 
   // ── Income ──
   const incomeColumns: ColumnDef[] = [
@@ -22,7 +21,7 @@ export function expandDailyFinance(schema: PlannerSchema): PlannerSchema {
   const incomeData = sections.income || [{ source: '', amount: '', comment: '' }];
 
   // ── Fixed Expenses ──
-  const fixedCategories = input.fixedCategories || (isRu
+  const fixedCategories = (schema['fixedCategories'] as string[]) || (isRu
     ? ['Аренда/Ипотека', 'Коммунальные', 'Зал', 'Интернет/Связь', 'Страховка', 'Налоги', 'Другое']
     : ['Rent/Mortgage', 'Utilities', 'Gym', 'Internet/Phone', 'Insurance', 'Taxes', 'Other']);
   const fixedColumns: ColumnDef[] = [
@@ -33,7 +32,7 @@ export function expandDailyFinance(schema: PlannerSchema): PlannerSchema {
   const fixedData = sections.fixed_expenses || [{ category: '', description: '', amount: '' }];
 
   // ── Variable Expenses ──
-  const variableCategories = input.variableCategories || (isRu
+  const variableCategories = (schema['variableCategories'] as string[]) || (isRu
     ? ['Продукты', 'Кафе/Рестораны', 'Медицина', 'Развлечения', 'Одежда', 'Путешествия', 'Бензин', 'Транспорт', 'Уход за собой', 'Подарки', 'Хобби', 'Другое']
     : ['Groceries', 'Dining', 'Medical', 'Entertainment', 'Clothing', 'Travel', 'Gas', 'Transport', 'Self-care', 'Gifts', 'Hobbies', 'Other']);
   const variableColumns: ColumnDef[] = [
@@ -61,12 +60,12 @@ export function expandDailyFinance(schema: PlannerSchema): PlannerSchema {
   const savingsData = sections.savings || [{ goal: '', amount: '', comment: '' }];
 
   const dateLabel = day || month;
-  const title = input.title || `💰 ${isRu ? 'Финансы' : 'Finance'} — ${dateLabel}`;
+  const title = (schema.title as string) || `💰 ${isRu ? 'Финансы' : 'Finance'} — ${dateLabel}`;
 
   return {
     type: 'grid',
     title,
-    theme: input.theme || 'soft',
+    theme: (schema.theme as string) || 'soft',
     locale,
     template: 'daily-finance',
     ...(day ? { day } : { month }),

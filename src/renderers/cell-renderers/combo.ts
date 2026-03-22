@@ -24,7 +24,7 @@ export function renderCombo(
     tagsWrap.className = 'planner-multi-tags';
 
     const rebuild = () => {
-      tagsWrap.innerHTML = '';
+      while (tagsWrap.firstChild) tagsWrap.removeChild(tagsWrap.firstChild);
       const curTasks = (value || '').split('|').map(s => s.trim()).filter(Boolean);
       for (const t of curTasks) {
         const tag = document.createElement('span');
@@ -119,21 +119,21 @@ export function renderCombo(
         sel.appendChild(o);
       }
       if (!value) emptyOpt.selected = true;
-      display.style.display = 'none';
+      display.classList.add('is-hidden');
       cell.appendChild(sel);
       sel.focus();
 
       const commit = () => {
         const newVal = sel.value;
         display.textContent = newVal;
-        display.style.display = '';
+        display.classList.remove('is-hidden');
         sel.remove();
         if (newVal !== value) onChange(newVal);
       };
       sel.addEventListener('blur', commit);
       sel.addEventListener('change', commit);
       sel.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') { display.style.display = ''; sel.remove(); }
+        if (e.key === 'Escape') { display.classList.remove('is-hidden'); sel.remove(); }
       });
     };
 
@@ -192,7 +192,7 @@ export function renderCombo(
     wrapper.appendChild(input);
     wrapper.appendChild(datalist);
 
-    display.style.display = 'none';
+    display.classList.add('is-hidden');
     cell.appendChild(wrapper);
     input.focus();
     input.select();
@@ -200,7 +200,7 @@ export function renderCombo(
     const commit = () => {
       const newVal = input.value;
       display.textContent = newVal;
-      display.style.display = '';
+      display.classList.remove('is-hidden');
       wrapper.remove();
       if (newVal !== value) {
         onChange(newVal);
@@ -210,7 +210,7 @@ export function renderCombo(
     input.addEventListener('blur', commit);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); commit(); }
-      if (e.key === 'Escape') { display.style.display = ''; wrapper.remove(); }
+      if (e.key === 'Escape') { display.classList.remove('is-hidden'); wrapper.remove(); }
     });
   };
 

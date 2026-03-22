@@ -1,4 +1,4 @@
-import { Plugin, MarkdownPostProcessorContext, MarkdownView, Modal, App, Setting, Notice, Menu, WorkspaceLeaf, TFolder, TFile } from 'obsidian';
+import { Plugin, MarkdownPostProcessorContext, MarkdownView, Modal, App, Setting, Notice, Menu, WorkspaceLeaf, TFolder, TFile, Editor } from 'obsidian';
 import { createPlanner } from './engine/planner-engine';
 import { parseSchema } from './parser/schema-parser';
 import { PlannerBoardsSettings, DEFAULT_SETTINGS, PlannerBoardsSettingTab } from './settings';
@@ -106,21 +106,21 @@ export default class PlannerBoardsPlugin extends Plugin {
     this.addRibbonIcon('layout-grid', 'Planner Boards', (evt) => {
       const menu = new Menu();
       menu.addItem(item => item.setTitle(t('menu.planners')).setIcon('layout-grid')
-        .onClick(() => this.activateView()));
+        .onClick(() => { void this.activateView(); }));
       menu.addSeparator();
       menu.addItem(item => item.setTitle(t('menu.syncCalendars')).setIcon('refresh-cw')
-        .onClick(async () => {
-          try {
-            await this.syncCalendars();
+        .onClick(() => {
+          void this.syncCalendars().then(() => {
             new Notice(t('notice.synced'));
-          } catch (e) {
+          }).catch((e: unknown) => {
             new Notice(t('notice.error', { msg: e instanceof Error ? e.message : String(e) }));
-          }
+          });
         }));
       menu.addItem(item => item.setTitle(t('menu.settings')).setIcon('settings')
         .onClick(() => {
-          (this.app as any).setting?.open();
-          (this.app as any).setting?.openTabById?.('planner-boards');
+          const appWithSetting = this.app as App & { setting?: { open(): void; openTabById?(id: string): void } };
+          appWithSetting.setting?.open();
+          appWithSetting.setting?.openTabById?.('planner-boards');
         }));
       menu.showAtMouseEvent(evt);
     });
@@ -164,7 +164,7 @@ export default class PlannerBoardsPlugin extends Plugin {
           let schema = parseSchema(block);
           if (schema.template) schema = expandTemplate(schema);
           const csv = exportToCSV(schema);
-          navigator.clipboard.writeText(csv);
+          void navigator.clipboard.writeText(csv);
           new Notice(t('notice.csvCopied'));
         } catch (e) {
           new Notice(t('notice.exportError', { msg: e instanceof Error ? e.message : 'unknown' }));
@@ -174,7 +174,7 @@ export default class PlannerBoardsPlugin extends Plugin {
 
     this.addCommand({
       id: 'export-markdown',
-      name: 'Export to Markdown Table',
+      name: 'Export to Markdown table',
       editorCallback: (editor) => {
         const block = this.extractPlannerBlock(editor);
         if (!block) { new Notice(t('notice.cursorNotInBlock')); return; }
@@ -182,7 +182,7 @@ export default class PlannerBoardsPlugin extends Plugin {
           let schema = parseSchema(block);
           if (schema.template) schema = expandTemplate(schema);
           const md = exportToMarkdown(schema);
-          navigator.clipboard.writeText(md);
+          void navigator.clipboard.writeText(md);
           new Notice(t('notice.mdCopied'));
         } catch (e) {
           new Notice(t('notice.exportError', { msg: e instanceof Error ? e.message : 'unknown' }));
@@ -193,7 +193,7 @@ export default class PlannerBoardsPlugin extends Plugin {
     // Custom template commands
     this.addCommand({
       id: 'save-as-template',
-      name: 'Save as Template',
+      name: 'Save as template',
       editorCallback: (editor) => {
         const block = this.extractPlannerBlock(editor);
         if (!block) { new Notice(t('notice.cursorNotInBlock')); return; }
@@ -214,34 +214,32 @@ export default class PlannerBoardsPlugin extends Plugin {
     // Calendar commands
     this.addCommand({
       id: 'sync-calendars',
-      name: 'Sync Calendars',
-      callback: async () => {
-        try {
-          await this.syncCalendars();
+      name: 'Sync calendars',
+      callback: () => {
+        void this.syncCalendars().then(() => {
           new Notice(t('notice.calendarsSynced'));
-        } catch (e) {
+        }).catch((e: unknown) => {
           new Notice(t('notice.error', { msg: e instanceof Error ? e.message : String(e) }));
-        }
+        });
       },
     });
 
     this.addCommand({
       id: 'open-planner-view',
-      name: 'Open Planner Boards View',
-      callback: () => this.activateView(),
+      name: 'Open view',
+      callback: () => { void this.activateView(); },
     });
 
 
     this.addCommand({
       id: 'insert-calendar-planner',
-      name: 'Insert Calendar Week View',
-      editorCallback: async (editor) => {
-        try {
-          const yaml = await this.generateCalendarWeekYaml();
+      name: 'Insert calendar week view',
+      editorCallback: (editor) => {
+        void this.generateCalendarWeekYaml().then((yaml) => {
           editor.replaceSelection('```planner\n' + yaml + '\n```\n');
-        } catch (e) {
+        }).catch((e: unknown) => {
           new Notice(t('notice.error', { msg: e instanceof Error ? e.message : String(e) }));
-        }
+        });
       },
     });
   }
@@ -293,7 +291,7 @@ export default class PlannerBoardsPlugin extends Plugin {
   /**
    * Extract the planner YAML source from the code block at the cursor position.
    */
-  private extractPlannerBlock(editor: any): string | null {
+  private extractPlannerBlock(editor: Editor): string | null {
     const cursor = editor.getCursor();
     const content = editor.getValue();
     const lines = content.split('\n');
@@ -336,14 +334,14 @@ export default class PlannerBoardsPlugin extends Plugin {
 
     if (existing.length > 0) {
       leaf = existing[0];
-      workspace.revealLeaf(leaf);
+      void workspace.revealLeaf(leaf);
     } else {
       leaf = workspace.getLeaf('tab');
       await leaf.setViewState({
         type: VIEW_TYPE_PLANNER,
         active: true,
       });
-      workspace.revealLeaf(leaf);
+      void workspace.revealLeaf(leaf);
     }
   }
 
@@ -359,7 +357,9 @@ export default class PlannerBoardsPlugin extends Plugin {
     const file = await this.app.vault.create(fileName, content);
     new Notice(t('notice.boardCreated', { name: fileName }));
     const leaf = this.app.workspace.getLeaf('tab');
-    await leaf.openFile(file as TFile);
+    if (file instanceof TFile) {
+      await leaf.openFile(file);
+    }
   }
 
   getTemplates() {
@@ -391,14 +391,14 @@ export default class PlannerBoardsPlugin extends Plugin {
     );
 
     if (this.settings.calendar.sources.length > 0) {
-      this.calendarSync.startAutoSync(() => this.syncCalendars());
+      this.calendarSync.startAutoSync(() => { void this.syncCalendars(); });
     }
   }
 
   restartCalendarSync() {
     if (this.calendarSync) {
       this.calendarSync.updateSettings(this.settings.calendar);
-      this.calendarSync.startAutoSync(() => this.syncCalendars());
+      this.calendarSync.startAutoSync(() => { void this.syncCalendars(); });
     }
   }
 
@@ -485,8 +485,6 @@ export default class PlannerBoardsPlugin extends Plugin {
     if (this.calendarSync) {
       this.calendarSync.stopAutoSync();
     }
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_PLANNER);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_BOARD);
   }
 }
 
@@ -555,10 +553,9 @@ class LoadTemplateModal extends Modal {
 
     // Built-in templates
     contentEl.createEl('h3', { text: t('modal.builtIn') });
-    for (const [key, tmpl] of Object.entries(TEMPLATES)) {
-      const item = contentEl.createDiv({ cls: 'planner-modal-template-item' });
-      item.style.cssText = 'padding: 6px 12px; margin: 2px 0; border-radius: 6px; cursor: pointer; border: 1px solid var(--background-modifier-border);';
-      item.createEl('span', { text: tmpl.label }).style.fontWeight = '600';
+    for (const [, tmpl] of Object.entries(TEMPLATES)) {
+      const item = contentEl.createDiv({ cls: 'planner-template-item' });
+      item.createEl('span', { text: tmpl.label, cls: 'planner-template-item-label' });
       item.addEventListener('click', () => {
         this.onInsert(tmpl.generator(this.settings));
         this.close();
@@ -571,17 +568,18 @@ class LoadTemplateModal extends Modal {
       if (custom.length > 0) {
         contentEl.createEl('h3', { text: t('modal.custom') });
         for (const name of custom) {
-          const item = contentEl.createDiv({ cls: 'planner-modal-template-item' });
-          item.style.cssText = 'padding: 6px 12px; margin: 2px 0; border-radius: 6px; cursor: pointer; border: 1px solid var(--background-modifier-border);';
-          item.createEl('span', { text: `📄 ${name}` }).style.fontWeight = '600';
-          item.addEventListener('click', async () => {
-            try {
-              const yaml = await loadCustomTemplate(this.app, name, this.settings.templatesFolder);
-              this.onInsert(yaml);
-              this.close();
-            } catch (e) {
-              new Notice(t('notice.loadError', { msg: e instanceof Error ? e.message : 'unknown' }));
-            }
+          const item = contentEl.createDiv({ cls: 'planner-template-item' });
+          item.createEl('span', { text: `📄 ${name}`, cls: 'planner-template-item-label' });
+          item.addEventListener('click', () => {
+            void (async () => {
+              try {
+                const yaml = await loadCustomTemplate(this.app, name, this.settings.templatesFolder);
+                this.onInsert(yaml);
+                this.close();
+              } catch (e) {
+                new Notice(t('notice.loadError', { msg: e instanceof Error ? e.message : 'unknown' }));
+              }
+            })();
           });
         }
       }
@@ -615,7 +613,7 @@ class ImportCSVModal extends Modal {
     contentEl.createEl('p', { text: t('modal.importCSVHint') });
 
     const textarea = contentEl.createEl('textarea');
-    textarea.style.cssText = 'width: 100%; height: 200px; font-family: monospace; font-size: 0.85em; resize: vertical;';
+    textarea.addClass('planner-import-textarea');
     textarea.placeholder = t('ui.csvPlaceholder');
 
     let title = '';

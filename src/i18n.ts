@@ -7,7 +7,7 @@ export function getLocale(): Locale { return currentLocale; }
 
 export function t(key: string, params?: Record<string, string | number>): string {
   const dict = currentLocale === 'ru' ? ru : en;
-  let val = (dict as any)[key] ?? (ru as any)[key] ?? key;
+  let val = (dict as Record<string, string>)[key] ?? (ru as Record<string, string>)[key] ?? key;
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       val = val.replace(`{${k}}`, String(v));
@@ -245,7 +245,7 @@ const ru = {
   'ui.daysAgo': '{n} дн. назад',
 } as const;
 
-const en: Record<string, any> = {
+const en: Record<string, string> = {
   // Buttons
   'btn.today': 'Today',
   'btn.open': 'Open',
@@ -478,5 +478,5 @@ const en: Record<string, any> = {
 
 export function tArray(key: string): string[] {
   const dict = currentLocale === 'ru' ? ru : en;
-  return (dict as any)[key] ?? (ru as any)[key] ?? [];
+  return (dict as Record<string, string>)[key] ?? (ru as Record<string, string>)[key] ?? [];
 }

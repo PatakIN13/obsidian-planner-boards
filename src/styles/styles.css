@@ -57,6 +57,7 @@
   top: 0;
   z-index: 2;
   user-select: none;
+  width: var(--col-width, auto);
 }
 
 .planner-th:last-child {
@@ -66,7 +67,7 @@
 /* Frozen columns */
 .planner-frozen {
   position: sticky;
-  left: 0;
+  left: var(--frozen-left, 0);
   z-index: 3;
   background: var(--background-secondary);
 }
@@ -82,6 +83,7 @@ thead .planner-frozen {
   border-right: 1px solid var(--background-modifier-border);
   vertical-align: middle;
   background: var(--background-primary);
+  min-width: var(--col-min-width, auto);
 }
 
 .planner-td:last-child {
@@ -168,7 +170,7 @@ select.planner-cell-input {
 .planner-cell-formula {
   text-align: center;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--scale-text-color, var(--text-muted));
   font-size: 0.9em;
 }
 
@@ -190,9 +192,10 @@ select.planner-cell-input {
 .planner-progress-fill {
   height: 100%;
   border-radius: 3px;
-  background: var(--interactive-accent);
+  background: var(--scale-color, var(--interactive-accent));
   transition: width 0.3s ease;
   min-width: 0;
+  width: var(--bar-width, 0%);
 }
 
 .planner-progress-label {
@@ -373,6 +376,8 @@ select.planner-cell-input {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 4px 0;
   min-width: 200px;
+  left: var(--menu-left);
+  top: var(--menu-top);
 }
 
 .planner-context-menu-item {
@@ -969,6 +974,7 @@ select.planner-cell-input {
   border-radius: 4px;
   font-size: 0.85em;
   background: var(--background-secondary);
+  border-left: 3px solid var(--event-color, transparent);
 }
 .planner-hub-event-time {
   font-weight: 600;
@@ -1634,6 +1640,7 @@ select.planner-cell-input {
   background: var(--interactive-accent);
   border-radius: 4px;
   transition: width 0.3s;
+  width: var(--bar-width, 0%);
 }
 .planner-summary-table {
   width: 100%;
@@ -2076,6 +2083,7 @@ select.planner-cell-input {
   height: 100%;
   border-radius: 4px;
   transition: width 0.3s ease;
+  width: var(--bar-width, 0%);
 }
 
 .planner-chart-bar-tasks .planner-chart-bar-fill {
@@ -2234,6 +2242,7 @@ select.planner-cell-input {
   align-items: center;
   min-width: 2px;
   transition: width 0.3s ease;
+  width: var(--bar-width, 0%);
 }
 .planner-finance-bar-plan {
   background: var(--background-modifier-border);
@@ -2367,4 +2376,192 @@ select.planner-cell-input {
   font-weight: 600;
 }
 
+/* Template modal items */
+.planner-template-item {
+  padding: 6px 12px;
+  margin: 2px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+}
 
+.planner-template-item-label {
+  font-weight: 600;
+}
+
+/* Import CSV textarea */
+.planner-import-textarea {
+  width: 100%;
+  height: 200px;
+  font-family: monospace;
+  font-size: 0.85em;
+  resize: vertical;
+}
+
+
+
+/* ── Settings: Calendar source card ── */
+.planner-calendar-source {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+}
+
+.planner-calendar-source-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.planner-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: var(--dot-color);
+}
+
+.planner-calendar-source-name {
+  flex: 1;
+}
+
+.planner-cache-age {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.planner-ics-url-input {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.85em;
+}
+
+/* ── Settings: Color picker popup ── */
+.planner-color-picker-popup {
+  position: fixed;
+  z-index: 1000;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  top: var(--popup-top);
+  left: var(--popup-left);
+}
+
+.planner-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+  background: var(--swatch-color);
+}
+
+.planner-color-swatch.is-selected {
+  border-color: var(--text-normal);
+}
+
+.planner-custom-color-row {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.planner-custom-color-input {
+  width: 100%;
+  height: 28px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Utility: hide elements via class toggle instead of inline style */
+.is-hidden {
+  display: none !important;
+}
+
+/* Formula cell with color_scale emphasis */
+.planner-formula-bold {
+  font-weight: bold;
+}
+
+/* ── Progress bar variants ── */
+.planner-progress-bar-tall {
+  height: 12px;
+}
+
+.planner-progress-bar-inline {
+  width: 80px;
+  display: inline-block;
+}
+
+.planner-progress-bar-inline-sm {
+  width: 60px;
+  display: inline-block;
+}
+
+.planner-progress-bar-flex {
+  flex: 1;
+}
+
+/* ── Chart bar fixed width ── */
+.planner-chart-bar-fixed {
+  width: 100px;
+}
+
+/* ── Progress fill color variants ── */
+.planner-fill-success {
+  background-color: var(--interactive-success);
+}
+
+.planner-fill-accent {
+  background-color: var(--text-accent);
+}
+
+.planner-fill-error {
+  background-color: var(--text-error);
+}
+
+.planner-fill-positive {
+  background-color: var(--color-green);
+}
+
+.planner-fill-negative {
+  background-color: var(--color-red);
+}
+
+/* ── Date input in modal ── */
+.planner-date-input-full {
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+/* ── CSS custom property driven styles ── */
+.planner-view-event-item {
+  border-left: 4px solid var(--event-color, transparent);
+}
+
+.planner-view-legend-dot {
+  background: var(--dot-color);
+}
+
+.planner-yearly-chart-bar {
+  height: var(--bar-height, 0%);
+}
+
+.planner-row-placeholder {
+  height: var(--row-height, auto);
+}
+
+.planner-cond-scaled {
+  background-color: var(--cond-bg) !important;
+  border-left: 3px solid var(--cond-border-color) !important;
+}

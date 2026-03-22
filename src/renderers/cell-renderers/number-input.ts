@@ -24,7 +24,7 @@ export function renderNumberInput(
     input.value = value !== undefined && value !== null ? String(value) : '';
     if (col.min !== undefined) input.min = String(col.min);
     if (col.max !== undefined) input.max = String(col.max);
-    display.style.display = 'none';
+    display.classList.add('is-hidden');
     cell.appendChild(input);
     input.focus();
     input.select();
@@ -35,7 +35,7 @@ export function renderNumberInput(
       if (col.min !== undefined) newVal = Math.max(col.min, newVal);
       if (col.max !== undefined) newVal = Math.min(col.max, newVal);
       display.textContent = String(newVal);
-      display.style.display = '';
+      display.classList.remove('is-hidden');
       input.remove();
       if (newVal !== value) {
         onChange(newVal);
@@ -45,7 +45,7 @@ export function renderNumberInput(
     input.addEventListener('blur', commit);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); commit(); }
-      if (e.key === 'Escape') { display.style.display = ''; input.remove(); }
+      if (e.key === 'Escape') { display.classList.remove('is-hidden'); input.remove(); }
     });
   };
 

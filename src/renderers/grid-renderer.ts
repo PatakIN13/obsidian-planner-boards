@@ -1,4 +1,4 @@
-import { PlannerSchema, ColumnDef, FormulaContext } from '../types';
+import { PlannerSchema, ColumnDef, FormulaContext, SubtableEntry } from '../types';
 import { evaluateFormula, evaluateSummaryFormula } from '../engine/formulas';
 import { renderCheckbox } from './cell-renderers/checkbox';
 import { renderTextInput } from './cell-renderers/text-input';
@@ -12,14 +12,14 @@ import { applyConditionalFormatting } from '../engine/conditional-formatting';
 import { t } from '../i18n';
 
 export interface GridCallbacks {
-  onCellChange: (rowIndex: number, colId: string, newValue: any) => void;
+  onCellChange: (rowIndex: number, colId: string, newValue: string | number | boolean | null) => void;
   onAddRow?: (afterIndex: number) => void;
   onDeleteRow?: (rowIndex: number) => void;
   onAddColumn?: (afterColId: string, newCol: ColumnDef) => void;
   onDeleteColumn?: (colId: string) => void;
   onMoveRow?: (fromIndex: number, toIndex: number) => void;
   onDuplicateRow?: (rowIndex: number) => void;
-  onSchemaFieldChange?: (field: string, value: any) => void;
+  onSchemaFieldChange?: (field: string, value: string | number) => void;
 }
 
 export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTMLElement {
@@ -27,11 +27,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
   container.className = `planner-container planner-theme-${schema.theme || 'soft'}`;
 
   // Multi-section support (weekly planner etc.)
-  const subtables = (schema as any)._subtables as Array<{
-    title: string; columns: ColumnDef[]; data: Record<string, any>[]; group?: string;
-    controls?: Array<{ type: 'select'; field: string; value: any; options: { label: string; value: any }[] }>;
-    onAddItem?: () => void;
-  }> | undefined;
+  const subtables: SubtableEntry[] | undefined = schema._subtables;
 
   if (subtables && subtables.length > 0) {
     // Title
@@ -43,7 +39,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
     }
 
     // Collect dynamic options for combo columns (refTable -> refColumn)
-    const subtableMap = new Map<string, Record<string, any>[]>();
+    const subtableMap = new Map<string, Record<string, string | number | boolean>[]>();
     for (const sub of subtables) {
       subtableMap.set(sub.title, sub.data);
     }
@@ -103,7 +99,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
         if (colId === 'done' && 'completedDate' in subSchema.data[rowIndex]) {
           if (newValue) {
             // Use planner's day if available, otherwise today
-            const plannerDay = (schema as any).day;
+            const plannerDay = schema.day as string | undefined;
             const dateStr = plannerDay || (() => {
               const now = new Date();
               return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -131,7 +127,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
         callbacks.onCellChange(-1, '__subtable__', null);
       },
       onAddRow: (afterIndex) => {
-        const emptyRow: Record<string, any> = {};
+        const emptyRow: Record<string, string | number | boolean> = {};
         for (const col of subSchema.columns) {
           switch (col.type) {
             case 'checkbox': emptyRow[col.id] = false; break;
@@ -165,7 +161,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
 
       // Callbacks operate on full data (including empty rows)
       const fullSchema: PlannerSchema = { ...schema, title: '', columns: sub.columns, data: sub.data, summary: [] };
-      delete (fullSchema as any)._subtables;
+      delete fullSchema._subtables;
       const subCb = makeSubCallbacks(fullSchema);
 
       // Filter out completely empty rows for display only
@@ -179,7 +175,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
 
       const titleEl = renderSectionTitle(sub);
       // Add button in header (unless noAddRow is set)
-      if (!(sub as any).noAddRow) {
+      if (!sub.noAddRow) {
         const addBtn = document.createElement('button');
         addBtn.className = 'planner-section-add-btn';
         // Strip emoji prefix from title for button label
@@ -198,7 +194,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
 
       if (displayData.length > 0) {
         const displaySchema: PlannerSchema = { ...schema, title: '', columns: sub.columns, data: displayData, summary: [] };
-        delete (displaySchema as any)._subtables;
+        delete displaySchema._subtables;
         sectionEl.appendChild(renderSingleGrid(displaySchema, subCb));
       }
     };
@@ -222,7 +218,7 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
         const colGroups = new Map<string, typeof subtables>();
         const colOrder: string[] = [];
         for (const gi of groupItems) {
-          const col = (gi as any).groupCol || `_auto_${colOrder.length}`;
+          const col = gi.groupCol || `_auto_${colOrder.length}`;
           if (!colGroups.has(col)) { colGroups.set(col, []); colOrder.push(col); }
           colGroups.get(col)!.push(gi);
         }
@@ -287,7 +283,6 @@ function renderSingleGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTML
   // Drag handle column header
   const dragTh = document.createElement('th');
   dragTh.className = 'planner-th planner-th-drag';
-  dragTh.style.width = '24px';
   headerRow.appendChild(dragTh);
 
   frozenOffset = 0;
@@ -295,10 +290,10 @@ function renderSingleGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTML
     const th = document.createElement('th');
     th.className = 'planner-th';
     th.textContent = col.label;
-    if (col.width) th.style.width = `${col.width}px`;
+    if (col.width) th.style.setProperty('--col-width', `${col.width}px`);
     if (col.frozen) {
       th.classList.add('planner-frozen');
-      th.style.left = `${24 + frozenOffset}px`; // offset for drag column
+      th.style.setProperty('--frozen-left', `${24 + frozenOffset}px`); // offset for drag column
       frozenOffset += col.width || 80;
     }
 
@@ -331,7 +326,7 @@ function renderSingleGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTML
   const useVirtualization = schema.data.length > VIRTUALIZE_THRESHOLD;
   const ROW_HEIGHT = 36; // approximate row height in px
 
-  const renderRow = (row: Record<string, any>, rowIndex: number): HTMLElement => {
+  const renderRow = (row: Record<string, string | number | boolean>, rowIndex: number): HTMLElement => {
     const tr = document.createElement('tr');
     tr.className = 'planner-row';
     tr.dataset.rowIndex = String(rowIndex);
@@ -339,7 +334,7 @@ function renderSingleGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTML
     // Drag handle cell
     const dragTd = document.createElement('td');
     dragTd.className = 'planner-td planner-drag-handle';
-    dragTd.innerHTML = '⠿';
+    dragTd.textContent = '⠿';
     dragTd.draggable = true;
     dragTd.title = t('ui.dragToMove');
 
@@ -438,10 +433,10 @@ function renderSingleGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTML
       td.className = 'planner-td';
       if (col.frozen) {
         td.classList.add('planner-frozen');
-        td.style.left = `${24 + frozenOffset}px`;
+        td.style.setProperty('--frozen-left', `${24 + frozenOffset}px`);
         frozenOffset += col.width || 80;
       }
-      if (col.width) td.style.minWidth = `${col.width}px`;
+      if (col.width) td.style.setProperty('--col-min-width', `${col.width}px`);
 
       const cellEl = renderCell(row, col, schema, rowIndex, callbacks);
       td.appendChild(cellEl);
@@ -468,7 +463,7 @@ function renderSingleGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTML
       for (let i = INITIAL_BATCH; i < schema.data.length; i++) {
         const placeholder = document.createElement('tr');
         placeholder.className = 'planner-row planner-row-placeholder';
-        placeholder.style.height = `${ROW_HEIGHT}px`;
+        placeholder.style.setProperty('--row-height', `${ROW_HEIGHT}px`);
         placeholder.dataset.rowIndex = String(i);
         tbody.appendChild(placeholder);
         remaining.push(placeholder);
@@ -528,16 +523,15 @@ function renderSingleGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTML
 }
 
 function renderCell(
-  row: Record<string, any>,
+  row: Record<string, string | number | boolean>,
   col: ColumnDef,
   schema: PlannerSchema,
   rowIndex: number,
   callbacks: GridCallbacks
 ): HTMLElement {
   const value = row[col.id];
-  const onChange = (newVal: any) => {
-    // Flash highlight on the cell's parent td
-    const td = cell?.closest?.('.planner-td') as HTMLElement | null;
+  const onChange = (newVal: string | number | boolean) => {
+    const td = cell.closest<HTMLElement>('.planner-td') ?? null;
     if (td) {
       td.classList.remove('planner-cell-flash');
       void td.offsetWidth; // force reflow
@@ -613,8 +607,8 @@ function showContextMenu(
 
   const menu = document.createElement('div');
   menu.className = 'planner-context-menu';
-  menu.style.left = `${e.pageX}px`;
-  menu.style.top = `${e.pageY}px`;
+  menu.style.setProperty('--menu-left', `${e.pageX}px`);
+  menu.style.setProperty('--menu-top', `${e.pageY}px`);
 
   const items = [
     { label: t('ctx.addRowAbove'), action: () => callbacks.onAddRow?.(rowIndex - 1) },
@@ -655,8 +649,8 @@ function showColumnContextMenu(
 
   const menu = document.createElement('div');
   menu.className = 'planner-context-menu';
-  menu.style.left = `${e.pageX}px`;
-  menu.style.top = `${e.pageY}px`;
+  menu.style.setProperty('--menu-left', `${e.pageX}px`);
+  menu.style.setProperty('--menu-top', `${e.pageY}px`);
 
   const items = [
     {

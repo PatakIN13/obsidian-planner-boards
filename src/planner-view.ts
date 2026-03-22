@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile } from 'obsidian';
+import { ItemView, WorkspaceLeaf, setIcon, TFile } from 'obsidian';
 import type PlannerBoardsPlugin from './main';
 import { CalendarEvent } from './calendar/calendar-types';
 import { parseSchema } from './parser/schema-parser';
@@ -45,7 +45,7 @@ export class PlannerBoardsView extends ItemView {
   }
 
   getViewType(): string { return VIEW_TYPE_PLANNER; }
-  getDisplayText(): string { return 'Planner Boards'; }
+  getDisplayText(): string { return 'Planner boards'; }
   getIcon(): string { return 'layout-grid'; }
 
   /** Backward compat */
@@ -98,7 +98,7 @@ export class PlannerBoardsView extends ItemView {
             for (const block of blocks) {
               const yaml = block.replace(/^```planner\n/, '').replace(/```$/, '').trim();
               const schema = parseSchema(yaml);
-              const input = schema as any;
+              const input = schema;
               const day = input.day as string | undefined;
               if (!day) continue;
 
@@ -108,11 +108,11 @@ export class PlannerBoardsView extends ItemView {
               if (input.template === 'daily-planner') {
                 ds.hasPlan = true;
                 const expanded = expandTemplate(schema);
-                const sections = (expanded as any).sections || {};
+                const sections = expanded.sections as Record<string, Record<string, unknown>[]> || {};
                 if (sections.tasks) {
                   for (const row of sections.tasks) {
                     if (row.task) {
-                      ds.tasks.push({ task: row.task, done: !!row.done, priority: row.priority || '' });
+                      ds.tasks.push({ task: row.task as string, done: !!row.done, priority: (row.priority as string) || '' });
                       ds.tasksTotal++;
                       if (row.done) ds.tasksDone++;
                     }
@@ -121,7 +121,7 @@ export class PlannerBoardsView extends ItemView {
                 if (sections.habits) {
                   for (const row of sections.habits) {
                     if (row.habit) {
-                      ds.habits.push({ habit: row.habit, done: !!row.done });
+                      ds.habits.push({ habit: row.habit as string, done: !!row.done });
                       ds.habitsTotal++;
                       if (row.done) ds.habitsDone++;
                     }
@@ -129,7 +129,7 @@ export class PlannerBoardsView extends ItemView {
                 }
                 if (sections.schedule) {
                   for (const row of sections.schedule) {
-                    if (row.task) ds.schedule.push({ time: row.time || '', task: row.task });
+                    if (row.task) ds.schedule.push({ time: (row.time as string) || '', task: row.task as string });
                   }
                 }
               }
@@ -137,7 +137,7 @@ export class PlannerBoardsView extends ItemView {
               if (input.template === 'daily-finance') {
                 ds.hasFinance = true;
                 const expanded = expandTemplate(schema);
-                const sections = (expanded as any).sections || {};
+                const sections = expanded.sections as Record<string, Record<string, unknown>[]> || {};
                 if (sections.income) {
                   for (const r of sections.income) ds.income += Number(r.amount) || 0;
                 }
@@ -165,11 +165,11 @@ export class PlannerBoardsView extends ItemView {
 
     // Header
     const titleRow = this.headerEl.createDiv({ cls: 'planner-view-title-row' });
-    titleRow.createEl('h2', { text: '📋 Planner Boards', cls: 'planner-hub-title' });
+    titleRow.createEl('h2', { text: '📋 Planner boards', cls: 'planner-hub-title' });
     const actions = titleRow.createDiv({ cls: 'planner-view-actions' });
     const refreshBtn = actions.createEl('button', { cls: 'planner-view-action-btn', title: t('ui.refresh') });
     setIcon(refreshBtn, 'refresh-cw');
-    refreshBtn.addEventListener('click', () => this.fullRefresh());
+    refreshBtn.addEventListener('click', () => { void this.fullRefresh(); });
 
     const dashboard = this.contentContainer.createDiv({ cls: 'planner-hub' });
 
@@ -253,10 +253,10 @@ export class PlannerBoardsView extends ItemView {
         if (this.visibleBoards.length > 0) {
           const board = this.visibleBoards[0];
           const leaf = this.app.workspace.getLeaf('tab');
-          leaf.openFile(board.file).then(() => {
+          void leaf.openFile(board.file).then(() => {
             // Navigate to day after file loads
             setTimeout(() => {
-              const view = leaf.view as any;
+              const view = leaf.view as ItemView & { navigateToDay?: (d: string) => void };
               if (view && typeof view.navigateToDay === 'function') {
                 view.navigateToDay(dateStr);
               }
@@ -350,7 +350,7 @@ export class PlannerBoardsView extends ItemView {
       const taskCell = row.createEl('td');
       if (ds.tasksTotal > 0) {
         const pct = Math.round((ds.tasksDone / ds.tasksTotal) * 100);
-        taskCell.innerHTML = `<span class="planner-hub-week-val ${pct === 100 ? 'val-good' : pct > 0 ? 'val-mid' : 'val-none'}">${ds.tasksDone}/${ds.tasksTotal}</span>`;
+        taskCell.createEl('span', { text: `${ds.tasksDone}/${ds.tasksTotal}`, cls: `planner-hub-week-val ${pct === 100 ? 'val-good' : pct > 0 ? 'val-mid' : 'val-none'}` });
       } else {
         taskCell.createEl('span', { text: '—', cls: 'planner-hub-week-val val-none' });
       }
@@ -359,7 +359,7 @@ export class PlannerBoardsView extends ItemView {
       const habitCell = row.createEl('td');
       if (ds.habitsTotal > 0) {
         const pct = Math.round((ds.habitsDone / ds.habitsTotal) * 100);
-        habitCell.innerHTML = `<span class="planner-hub-week-val ${pct === 100 ? 'val-good' : pct > 0 ? 'val-mid' : 'val-none'}">${ds.habitsDone}/${ds.habitsTotal}</span>`;
+        habitCell.createEl('span', { text: `${ds.habitsDone}/${ds.habitsTotal}`, cls: `planner-hub-week-val ${pct === 100 ? 'val-good' : pct > 0 ? 'val-mid' : 'val-none'}` });
       } else {
         habitCell.createEl('span', { text: '—', cls: 'planner-hub-week-val val-none' });
       }
@@ -389,10 +389,18 @@ export class PlannerBoardsView extends ItemView {
     const tfoot = table.createEl('tfoot');
     const totalRow = tfoot.createEl('tr', { cls: 'planner-hub-week-total' });
     totalRow.createEl('td', { text: isRu ? 'Итого' : 'Total', cls: 'planner-hub-week-day' });
-    totalRow.createEl('td').innerHTML = weekTasks > 0
-      ? `<span class="planner-hub-week-val val-total">${weekTasksDone}/${weekTasks}</span>` : '—';
-    totalRow.createEl('td').innerHTML = weekHabits > 0
-      ? `<span class="planner-hub-week-val val-total">${weekHabitsDone}/${weekHabits}</span>` : '—';
+    const weekTasksTd = totalRow.createEl('td');
+    if (weekTasks > 0) {
+      weekTasksTd.createEl('span', { text: `${weekTasksDone}/${weekTasks}`, cls: 'planner-hub-week-val val-total' });
+    } else {
+      weekTasksTd.setText('—');
+    }
+    const weekHabitsTd = totalRow.createEl('td');
+    if (weekHabits > 0) {
+      weekHabitsTd.createEl('span', { text: `${weekHabitsDone}/${weekHabits}`, cls: 'planner-hub-week-val val-total' });
+    } else {
+      weekHabitsTd.setText('—');
+    }
     totalRow.createEl('td').createEl('span', { text: weekIncome > 0 ? weekIncome.toLocaleString() : '—', cls: `planner-hub-week-val ${weekIncome > 0 ? 'val-income' : 'val-none'}` });
     totalRow.createEl('td').createEl('span', { text: weekExpenses > 0 ? weekExpenses.toLocaleString() : '—', cls: `planner-hub-week-val ${weekExpenses > 0 ? 'val-expense' : 'val-none'}` });
     totalRow.createEl('td').createEl('span', {
@@ -467,7 +475,7 @@ export class PlannerBoardsView extends ItemView {
 
       card.addEventListener('click', () => {
         const leaf = this.app.workspace.getLeaf('tab');
-        leaf.openFile(board.file);
+        void leaf.openFile(board.file);
       });
     }
   }
@@ -477,7 +485,7 @@ export class PlannerBoardsView extends ItemView {
   private renderEventList(container: HTMLElement, events: CalendarEvent[]) {
     for (const ev of events) {
       const item = container.createDiv({ cls: 'planner-hub-event' });
-      item.style.borderLeft = `3px solid ${ev.color}`;
+      item.style.setProperty('--event-color', ev.color);
       const time = ev.allDay ? (t('ui.allDay') || '🕐') :
         `${String(ev.start.getHours()).padStart(2, '0')}:${String(ev.start.getMinutes()).padStart(2, '0')}`;
       item.createEl('span', { text: time, cls: 'planner-hub-event-time' });
@@ -500,7 +508,7 @@ export class PlannerBoardsView extends ItemView {
       && a.getDate() === b.getDate();
   }
 
-  async onClose() {
+  onClose() {
     this.contentContainer?.empty();
   }
 }

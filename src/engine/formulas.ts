@@ -96,12 +96,7 @@ function evaluateArithmetic(expr: string, ctx: FormulaContext): number | null {
     return null;
   }
 
-  try {
-    const result = Function(`"use strict"; return (${resolved})`)();
-    return typeof result === 'number' && isFinite(result) ? result : null;
-  } catch {
-    return null;
-  }
+  return safeEvalArithmetic(resolved);
 }
 
 function getColumnRange(startId: string, endId: string | undefined, ctx: FormulaContext): string[] {
@@ -115,7 +110,7 @@ function getColumnRange(startId: string, endId: string | undefined, ctx: Formula
 
 function countIfColumns(startCol: string, endCol: string | undefined, condition: string, ctx: FormulaContext): number {
   const cols = getColumnRange(startCol, endCol, ctx);
-  let condValue: any;
+  let condValue: string | number | boolean;
   if (condition === 'true') condValue = true;
   else if (condition === 'false') condValue = false;
   else if (condition.startsWith('"')) condValue = condition.slice(1, -1);
@@ -188,7 +183,7 @@ function maxColumn(colId: string, ctx: FormulaContext): number | null {
 /**
  * Evaluate a summary formula over all rows for a given column.
  */
-export function evaluateSummaryFormula(formula: string, colId: string, allRows: Record<string, any>[], columns: ColumnDef[]): number | null {
+export function evaluateSummaryFormula(formula: string, colId: string, allRows: Record<string, string | number | boolean>[], columns: ColumnDef[]): number | null {
   const ctx: FormulaContext = {
     row: {},
     allRows,
@@ -197,7 +192,88 @@ export function evaluateSummaryFormula(formula: string, colId: string, allRows: 
   return resolveFormula(formula, ctx);
 }
 
-function toNumber(val: any): number | null {
+/**
+ * Safe arithmetic expression evaluator using recursive descent parsing.
+ * Only handles numbers, +, -, *, /, and parentheses.
+ */
+function safeEvalArithmetic(expr: string): number | null {
+  type Token = { type: 'num'; value: number } | { type: 'op'; value: string };
+  const tokens: Token[] = [];
+  let i = 0;
+  while (i < expr.length) {
+    if (expr[i] === ' ') { i++; continue; }
+    if ('+-*/()'.includes(expr[i])) {
+      tokens.push({ type: 'op', value: expr[i] });
+      i++;
+    } else if (/[\d.]/.test(expr[i])) {
+      let num = '';
+      while (i < expr.length && /[\d.]/.test(expr[i])) { num += expr[i++]; }
+      const val = parseFloat(num);
+      if (isNaN(val)) return null;
+      tokens.push({ type: 'num', value: val });
+    } else {
+      return null;
+    }
+  }
+
+  let pos = 0;
+  const peek = (): Token | undefined => tokens[pos];
+  const advance = (): Token => tokens[pos++];
+
+  function parseExpr(): number | null {
+    let left = parseTerm();
+    if (left === null) return null;
+    while (pos < tokens.length) {
+      const t = peek();
+      if (!t || t.type !== 'op' || (t.value !== '+' && t.value !== '-')) break;
+      const op = advance().value;
+      const right = parseTerm();
+      if (right === null) return null;
+      left = op === '+' ? left + right : left - right;
+    }
+    return left;
+  }
+
+  function parseTerm(): number | null {
+    let left = parseFactor();
+    if (left === null) return null;
+    while (pos < tokens.length) {
+      const t = peek();
+      if (!t || t.type !== 'op' || (t.value !== '*' && t.value !== '/')) break;
+      const op = advance().value;
+      const right = parseFactor();
+      if (right === null) return null;
+      left = op === '*' ? left * right : left / right;
+    }
+    return left;
+  }
+
+  function parseFactor(): number | null {
+    if (pos >= tokens.length) return null;
+    const t = peek()!;
+    if (t.type === 'num') { advance(); return t.value; }
+    if (t.type === 'op' && t.value === '(') {
+      advance();
+      const r = parseExpr();
+      if (r === null || pos >= tokens.length || peek()?.value !== ')') return null;
+      advance();
+      return r;
+    }
+    if (t.type === 'op' && (t.value === '+' || t.value === '-')) {
+      advance();
+      const f = parseFactor();
+      if (f === null) return null;
+      return t.value === '-' ? -f : f;
+    }
+    return null;
+  }
+
+  const result = parseExpr();
+  if (result === null || pos < tokens.length) return null;
+  return isFinite(result) ? result : null;
+}
+
+function toNumber(val: string | number | boolean): number | null {
   if (typeof val === 'number') return val;
   if (typeof val === 'boolean') return val ? 1 : 0;
   if (typeof val === 'string') {

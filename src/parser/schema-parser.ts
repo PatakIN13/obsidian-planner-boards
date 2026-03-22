@@ -2,20 +2,20 @@ import * as yaml from 'js-yaml';
 import { PlannerSchema, ColumnDef } from '../types';
 
 export function parseSchema(source: string): PlannerSchema {
-  const raw = yaml.load(source) as Record<string, any>;
+  const raw = yaml.load(source) as Record<string, unknown>;
   if (!raw || typeof raw !== 'object') {
     throw new Error('Invalid planner YAML: expected an object');
   }
 
   const schema: PlannerSchema = {
-    type: raw.type || 'grid',
-    title: raw.title || '',
-    theme: raw.theme || 'soft',
-    locale: raw.locale || 'ru',
-    template: raw.template,
+    type: (raw.type as string) || 'grid',
+    title: (raw.title as string) || '',
+    theme: (raw.theme as string) || 'soft',
+    locale: (raw.locale as string) || 'ru',
+    template: raw.template as string | undefined,
     columns: [],
-    summary: raw.summary || [],
-    data: raw.data || [],
+    summary: (raw.summary as PlannerSchema['summary']) || [],
+    data: (raw.data as PlannerSchema['data']) || [],
   };
 
   // Copy all extra fields for template processing
@@ -32,20 +32,20 @@ export function parseSchema(source: string): PlannerSchema {
   return schema;
 }
 
-function parseColumn(raw: any): ColumnDef {
+function parseColumn(raw: Record<string, unknown>): ColumnDef {
   return {
-    id: raw.id,
-    label: raw.label || raw.id,
-    type: raw.type || 'text',
-    width: raw.width,
-    frozen: raw.frozen || false,
-    group: raw.group,
-    options: raw.options,
-    min: raw.min,
-    max: raw.max,
-    formula: raw.formula,
-    format: raw.format,
-    color_scale: raw.color_scale,
-    highlight_if: raw.highlight_if,
+    id: raw.id as string,
+    label: (raw.label as string) || (raw.id as string),
+    type: (raw.type as ColumnDef['type']) || 'text',
+    width: raw.width as number | undefined,
+    frozen: (raw.frozen as boolean) || false,
+    group: raw.group as string | undefined,
+    options: raw.options as string[] | undefined,
+    min: raw.min as number | undefined,
+    max: raw.max as number | undefined,
+    formula: raw.formula as string | undefined,
+    format: raw.format as string | undefined,
+    color_scale: raw.color_scale as Record<number, string> | undefined,
+    highlight_if: raw.highlight_if as string | undefined,
   };
 }

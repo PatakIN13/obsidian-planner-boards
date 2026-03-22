@@ -51,8 +51,8 @@ export function createPlanner(
   }
 
   // Wire up onAddItem callbacks for subtables
-  if (callbacks.onAddItem && (schema as any)._subtables) {
-    for (const sub of (schema as any)._subtables) {
+  if (callbacks.onAddItem && schema._subtables) {
+    for (const sub of schema._subtables) {
       sub.onAddItem = () => callbacks.onAddItem!(sub.title);
     }
   }
@@ -132,7 +132,7 @@ export function createPlanner(
     },
     onAddRow: (afterIndex) => {
       pushUndo();
-      const emptyRow: Record<string, any> = {};
+      const emptyRow: Record<string, string | number | boolean> = {};
       for (const col of schema.columns) {
         switch (col.type) {
           case 'checkbox': emptyRow[col.id] = false; break;
@@ -182,11 +182,12 @@ export function createPlanner(
     },
     onSchemaFieldChange: (field, value) => {
       pushUndo();
-      (schema as any)[field] = value;
+      schema[field] = value;
       // When timeInterval changes, preserve assigned tasks and re-map to new slots
       // Tasks are stored pipe-separated in `task`, with original minutes in `_mins`
-      if (field === 'timeInterval' && (schema as any).sections) {
-        const oldSchedule: { time: string; task: string; _mins?: string }[] = (schema as any).sections.schedule || [];
+      if (field === 'timeInterval' && schema.sections) {
+        const scheduleData = schema.sections['schedule'] || [];
+        const oldSchedule = scheduleData as Array<{ time: string; task: string; _mins?: string }>;
         const interval = Number(value) || 60;
 
         const timeToMinutes = (t: string) => {
@@ -241,7 +242,7 @@ export function createPlanner(
           newSchedule[idx]._mins = existingMins.join('|');
         }
 
-        (schema as any).sections.schedule = newSchedule;
+        schema.sections['schedule'] = newSchedule as unknown as Array<Record<string, string | number | boolean>>;
       }
       rerender();
     },

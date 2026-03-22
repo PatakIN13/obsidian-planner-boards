@@ -28,11 +28,11 @@ export function renderFormulaCell(
 
     const fill = document.createElement('div');
     fill.className = 'planner-progress-fill';
-    fill.style.width = `${percent}%`;
+    fill.style.setProperty('--bar-width', `${percent}%`);
 
     // Apply color scale
     if (col.color_scale) {
-      fill.style.backgroundColor = getScaleColor(value, col.color_scale);
+      fill.style.setProperty('--scale-color', getScaleColor(value, col.color_scale));
     }
 
     const label = document.createElement('span');
@@ -47,8 +47,8 @@ export function renderFormulaCell(
 
   // Apply color scale for non-progress formulas
   if (col.color_scale) {
-    cell.style.color = getScaleColor(value, col.color_scale);
-    cell.style.fontWeight = 'bold';
+    cell.style.setProperty('--scale-text-color', getScaleColor(value, col.color_scale));
+    cell.classList.add('planner-formula-bold');
   }
 
   cell.textContent = displayText;

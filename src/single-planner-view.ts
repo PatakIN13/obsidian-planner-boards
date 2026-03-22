@@ -5,6 +5,7 @@ import { parseSchema } from './parser/schema-parser';
 import { serializeSchema } from './parser/data-serializer';
 import { expandTemplate } from './templates/template-registry';
 import { t, tArray } from './i18n';
+import type { PlannerSchema } from './types';
 
 export const VIEW_TYPE_BOARD = 'planner-board-view';
 export const VIEW_TYPE_PLANNER_FILE = 'planner-file-view';
@@ -126,13 +127,13 @@ export class BoardView extends TextFileView {
     this.data = data;
     if (this.suppressRefresh) { this.suppressRefresh = false; return; }
     this.parseBoardConfig();
-    this.refresh();
+    void this.refresh();
   }
 
   clear(): void { this.contentArea?.empty(); }
   getIcon(): string { return 'layout-grid'; }
 
-  async onOpen() {
+  onOpen() {
     const root = this.contentEl;
     root.empty();
     root.addClass('planner-board-root');
@@ -203,7 +204,7 @@ export class BoardView extends TextFileView {
           const nameMatch = entry.match(/\s+([\w-]+):\s*\|\n/);
           if (nameMatch) {
             const name = nameMatch[1];
-            const yamlContent = entry.replace(/\s+[\w-]+:\s*\|\n/, '').replace(/^    /gm, '').trimEnd();
+            const yamlContent = entry.replace(/\s+[\w-]+:\s*\|\n/, '').replace(/^ {4}/gm, '').trimEnd();
             if (yamlContent) this.config.templateDefaults[name] = yamlContent;
           }
         }
@@ -290,7 +291,7 @@ export class BoardView extends TextFileView {
     return fm;
   }
 
-  private async saveConfig() { this.data = this.serializeConfig(); this.requestSave(); }
+  private saveConfig() { this.data = this.serializeConfig(); this.requestSave(); }
   getBoardConfig(): BoardConfig { return { ...this.config }; }
 
   private async refresh() {
@@ -328,8 +329,8 @@ export class BoardView extends TextFileView {
           if (!title && templateMatch) {
             const tmplKey = templateMatch[1];
             if (tmplKey === 'daily-planner' && dayMatch) {
-              const isRu = (this.plugin.settings as any).locale !== 'en';
-              title = `📅 ${isRu ? 'Ежедневник' : 'Daily Planner'} — ${dayMatch[1]}`;
+              const isRu = this.plugin.settings.uiLanguage !== 'en';
+              title = `📅 ${isRu ? 'Ежедневник' : 'Daily planner'} — ${dayMatch[1]}`;
             } else {
               title = t(`tmpl.${tmplKey}`) || tmplKey;
             }
@@ -459,10 +460,11 @@ export class BoardView extends TextFileView {
     if (this.config.showCalendar) {
       const syncBtn = actions.createEl('button', { cls: 'planner-view-action-btn', title: t('btn.sync') });
       setIcon(syncBtn, 'refresh-cw');
-      syncBtn.addEventListener('click', async () => {
-        await this.plugin.syncCalendars();
-        new Notice(t('notice.synced'));
-        this.renderContent();
+      syncBtn.addEventListener('click', () => {
+        void this.plugin.syncCalendars().then(() => {
+          new Notice(t('notice.synced'));
+          this.renderContent();
+        });
       });
     }
     const settingsBtn = actions.createEl('button', { cls: `planner-view-action-btn ${this.activeMode === 'settings' ? 'planner-view-action-btn-active' : ''}`, title: t('board.settingsTooltip') });
@@ -478,7 +480,7 @@ export class BoardView extends TextFileView {
     });
     const refreshBtn = actions.createEl('button', { cls: 'planner-view-action-btn', title: t('ui.refresh') });
     setIcon(refreshBtn, 'refresh-cw');
-    refreshBtn.addEventListener('click', () => this.refresh());
+    refreshBtn.addEventListener('click', () => void this.refresh());
   }
 
   private buildBreadcrumb() {
@@ -498,7 +500,7 @@ export class BoardView extends TextFileView {
     if (!month) return;
     add(getMonthNames()[month - 1], level !== 'month' ? () => this.navigate({ level: 'month', year, month }) : undefined);
     if (!week) return;
-    const wDays = getDaysInWeek(year!, week);
+    const wDays = getDaysInWeek(year, week);
     const wStart = new Date(wDays[0].date);
     const wEnd = new Date(wDays[6].date);
     const wLabel = `${wStart.getDate()} ${getMonthShort()[wStart.getMonth()]} — ${wEnd.getDate()} ${getMonthShort()[wEnd.getMonth()]}`;
@@ -661,8 +663,8 @@ export class BoardView extends TextFileView {
           text: t('board.createDailyPlanner'),
           cls: 'mod-cta',
         });
-        createBtn.addEventListener('click', async () => {
-          await this.addPlannerToBoard('daily-planner');
+        createBtn.addEventListener('click', () => {
+          void this.addPlannerToBoard('daily-planner');
         });
       }
     }
@@ -682,7 +684,7 @@ export class BoardView extends TextFileView {
       });
       fileLink.addEventListener('click', (e) => {
         e.preventDefault();
-        this.app.workspace.openLinkText(block.file, '');
+        void this.app.workspace.openLinkText(block.file, '');
       });
       const cardBody = card.createDiv({ cls: 'planner-view-card-body planner-boards-root' });
       createPlanner(block.yaml, cardBody, {
@@ -711,12 +713,12 @@ export class BoardView extends TextFileView {
         onDataChange: async (newYaml: string) => {
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) return;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
             // Sync habits across daily planners in the same week
@@ -789,19 +791,21 @@ export class BoardView extends TextFileView {
     const btnRow = section.createDiv({ cls: 'planner-board-daily-buttons' });
     if (existing) {
       const openBtn = btnRow.createEl('button', { text: t('btn.openNote'), cls: 'mod-cta' });
-      openBtn.addEventListener('click', () => this.app.workspace.openLinkText(path, ''));
+      openBtn.addEventListener('click', () => void this.app.workspace.openLinkText(path, ''));
     } else {
       const createBtn = btnRow.createEl('button', { text: t('btn.createNote'), cls: 'mod-cta' });
-      createBtn.addEventListener('click', async () => {
-        const parts = path.split('/');
-        let dir = '';
-        for (let i = 0; i < parts.length - 1; i++) {
-          dir = dir ? `${dir}/${parts[i]}` : parts[i];
-          if (!this.app.vault.getAbstractFileByPath(dir)) await this.app.vault.createFolder(dir);
-        }
-        await this.app.vault.create(path, `# ${dateStr}\n\n`);
-        new Notice(t('notice.noteCreated', { path }));
-        this.app.workspace.openLinkText(path, '');
+      createBtn.addEventListener('click', () => {
+        void (async () => {
+          const parts = path.split('/');
+          let dir = '';
+          for (let i = 0; i < parts.length - 1; i++) {
+            dir = dir ? `${dir}/${parts[i]}` : parts[i];
+            if (!this.app.vault.getAbstractFileByPath(dir)) await this.app.vault.createFolder(dir);
+          }
+          await this.app.vault.create(path, `# ${dateStr}\n\n`);
+          new Notice(t('notice.noteCreated', { path }));
+          void this.app.workspace.openLinkText(path, '');
+        })();
       });
     }
   }
@@ -827,7 +831,7 @@ export class BoardView extends TextFileView {
       const list = section.createDiv({ cls: 'planner-view-event-list' });
       for (const ev of events) {
         const item = list.createDiv({ cls: 'planner-view-event-item' });
-        item.style.borderLeft = `4px solid ${ev.color}`;
+        item.style.setProperty('--event-color', ev.color);
         const time = item.createEl('span', { cls: 'planner-view-event-item-time' });
         if (ev.allDay) { time.textContent = t('ui.allDay'); }
         else {
@@ -842,7 +846,7 @@ export class BoardView extends TextFileView {
     for (const source of boundSources) {
       const item = legend.createDiv({ cls: 'planner-view-legend-item' });
       const dot = item.createEl('span', { cls: 'planner-view-legend-dot' });
-      dot.style.background = source.color;
+      dot.style.setProperty('--dot-color', source.color);
       item.createEl('span', { text: source.name });
     }
   }
@@ -880,16 +884,16 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(block.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const sections = (expanded as any).sections;
+        const sections = (expanded as PlannerSchema).sections;
         if (sections?.habits) {
-          const habits = sections.habits as any[];
+          const habits = sections.habits as Record<string, string | number | boolean>[];
           blockHabits.set(block.day!, habits);
           for (const h of habits) {
             if (h.habit) allHabitNames.add(h.habit);
           }
         }
         if (sections?.weeklyTasks) {
-          const wTasks = sections.weeklyTasks as any[];
+          const wTasks = sections.weeklyTasks as Record<string, string | number | boolean>[];
           blockWeeklyTasks.set(block.day!, wTasks);
           for (const t of wTasks) {
             if (t.task && !allWeeklyTasks.has(t.task)) {
@@ -902,7 +906,7 @@ export class BoardView extends TextFileView {
           }
         }
         if (sections?.tasks) {
-          for (const t of sections.tasks as any[]) {
+          for (const t of sections.tasks as Record<string, string | number | boolean>[]) {
             if (t.task && !allDailyTaskNames.has(t.task)) {
               allDailyTaskNames.add(t.task);
               dailyTaskInfo.set(t.task, { priority: t.priority || '', category: t.category || '' });
@@ -927,22 +931,22 @@ export class BoardView extends TextFileView {
       let needsUpdate = false;
       try {
         const schema = parseSchema(block.yaml);
-        if (!schema.sections) (schema as any).sections = {};
-        const sections = (schema as any).sections;
+        if (!schema.sections) (schema as PlannerSchema).sections = {};
+        const sections = (schema as PlannerSchema).sections;
 
         // --- Sync habits ---
         if (allHabitNames.size > 0) {
           if (!sections.habits) sections.habits = [];
-          const existingHabits = new Set((sections.habits as any[]).map((h: any) => h.habit).filter(Boolean));
+          const existingHabits = new Set((sections.habits as Record<string, string | number | boolean>[]).map((h: Record<string, string | number | boolean>) => h.habit).filter(Boolean));
           for (const name of allHabitNames) {
             if (!existingHabits.has(name)) {
-              sections.habits = sections.habits.filter((h: any) => h.habit);
+              sections.habits = sections.habits.filter((h: Record<string, string | number | boolean>) => h.habit);
               sections.habits.push({ habit: name, description: descMap.get(name) || '', done: false });
               needsUpdate = true;
             }
           }
           if (needsUpdate) {
-            sections.habits = sections.habits.filter((h: any) => h.habit);
+            sections.habits = sections.habits.filter((h: Record<string, string | number | boolean>) => h.habit);
             sections.habits.push({ habit: '', description: '', done: false });
           }
         }
@@ -950,21 +954,21 @@ export class BoardView extends TextFileView {
         // --- Sync weekly tasks ---
         if (allWeeklyTasks.size > 0) {
           if (!sections.weeklyTasks) sections.weeklyTasks = [];
-          const existingTasks = new Map<string, any>();
-          for (const t of sections.weeklyTasks as any[]) {
+          const existingTasks = new Map<string, Record<string, string | number | boolean>>();
+          for (const t of sections.weeklyTasks as Record<string, string | number | boolean>[]) {
             if (t.task) existingTasks.set(t.task, t);
           }
           for (const [taskName, masterTask] of allWeeklyTasks) {
             const existing = existingTasks.get(taskName);
             if (!existing) {
               // Add missing task (with done=false, each planner tracks its own completion)
-              sections.weeklyTasks = sections.weeklyTasks.filter((t: any) => t.task);
+              sections.weeklyTasks = sections.weeklyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
               sections.weeklyTasks.push({ done: false, task: masterTask.task, priority: masterTask.priority, category: masterTask.category, completedDate: '' });
               needsUpdate = true;
             }
           }
           if (needsUpdate) {
-            sections.weeklyTasks = sections.weeklyTasks.filter((t: any) => t.task);
+            sections.weeklyTasks = sections.weeklyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
             sections.weeklyTasks.push({ done: false, task: '', priority: '', category: '', completedDate: '' });
           }
         }
@@ -972,17 +976,17 @@ export class BoardView extends TextFileView {
         // --- Sync daily tasks ---
         if (allDailyTaskNames.size > 0) {
           if (!sections.tasks) sections.tasks = [];
-          const existingTasks = new Set((sections.tasks as any[]).map((t: any) => t.task).filter(Boolean));
+          const existingTasks = new Set((sections.tasks as Record<string, string | number | boolean>[]).map((t: Record<string, string | number | boolean>) => t.task).filter(Boolean));
           for (const taskName of allDailyTaskNames) {
             if (!existingTasks.has(taskName)) {
-              sections.tasks = sections.tasks.filter((t: any) => t.task);
+              sections.tasks = sections.tasks.filter((t: Record<string, string | number | boolean>) => t.task);
               const info = dailyTaskInfo.get(taskName)!;
               sections.tasks.push({ done: false, task: taskName, priority: info.priority, category: info.category });
               needsUpdate = true;
             }
           }
           if (needsUpdate) {
-            sections.tasks = sections.tasks.filter((t: any) => t.task);
+            sections.tasks = sections.tasks.filter((t: Record<string, string | number | boolean>) => t.task);
             sections.tasks.push({ done: false, task: '', priority: '', category: '' });
           }
         }
@@ -992,12 +996,12 @@ export class BoardView extends TextFileView {
         const newYaml = serializeSchema(schema);
         const file = this.app.vault.getAbstractFileByPath(block.file);
         if (!file) continue;
-        const content = await this.app.vault.read(file as any);
+        const content = await this.app.vault.read(file as TFile);
         const searchStr = '```planner\n' + block.originalYaml + '```';
         const replaceStr = '```planner\n' + newYaml + '\n```';
         const newContent = content.replace(searchStr, replaceStr);
         if (newContent !== content) {
-          await this.app.vault.modify(file as any, newContent);
+          await this.app.vault.modify(file as TFile, newContent);
           block.originalYaml = newYaml + '\n';
           block.yaml = newYaml;
         }
@@ -1022,9 +1026,9 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(block.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const sections = (expanded as any).sections;
+        const sections = (expanded as PlannerSchema).sections;
         if (sections?.monthlyTasks) {
-          for (const t of sections.monthlyTasks as any[]) {
+          for (const t of sections.monthlyTasks as Record<string, string | number | boolean>[]) {
             if (t.task && !allMonthlyTasks.has(t.task)) {
               allMonthlyTasks.set(t.task, { task: t.task, priority: t.priority || '', category: t.category || '' });
             }
@@ -1038,31 +1042,31 @@ export class BoardView extends TextFileView {
       let needsUpdate = false;
       try {
         const schema = parseSchema(block.yaml);
-        if (!schema.sections) (schema as any).sections = {};
-        const sections = (schema as any).sections;
+        if (!schema.sections) (schema as PlannerSchema).sections = {};
+        const sections = (schema as PlannerSchema).sections;
         if (!sections.monthlyTasks) sections.monthlyTasks = [];
-        const existing = new Set((sections.monthlyTasks as any[]).map((t: any) => t.task).filter(Boolean));
+        const existing = new Set((sections.monthlyTasks as Record<string, string | number | boolean>[]).map((t: Record<string, string | number | boolean>) => t.task).filter(Boolean));
         for (const [taskName, master] of allMonthlyTasks) {
           if (!existing.has(taskName)) {
-            sections.monthlyTasks = sections.monthlyTasks.filter((t: any) => t.task);
+            sections.monthlyTasks = sections.monthlyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
             sections.monthlyTasks.push({ done: false, task: master.task, priority: master.priority, category: master.category, completedDate: '' });
             needsUpdate = true;
           }
         }
         if (needsUpdate) {
-          sections.monthlyTasks = sections.monthlyTasks.filter((t: any) => t.task);
+          sections.monthlyTasks = sections.monthlyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
           sections.monthlyTasks.push({ done: false, task: '', priority: '', category: '', completedDate: '' });
         }
         if (!needsUpdate) continue;
         const newYaml = serializeSchema(schema);
         const file = this.app.vault.getAbstractFileByPath(block.file);
         if (!file) continue;
-        const content = await this.app.vault.read(file as any);
+        const content = await this.app.vault.read(file as TFile);
         const searchStr = '```planner\n' + block.originalYaml + '```';
         const replaceStr = '```planner\n' + newYaml + '\n```';
         const newContent = content.replace(searchStr, replaceStr);
         if (newContent !== content) {
-          await this.app.vault.modify(file as any, newContent);
+          await this.app.vault.modify(file as TFile, newContent);
           block.originalYaml = newYaml + '\n';
           block.yaml = newYaml;
         }
@@ -1083,14 +1087,14 @@ export class BoardView extends TextFileView {
     fullSchedule: { time: string; task: string }[];
     scheduleItems: number;
   } {
-    const result = { day: block.day!, tasks: [] as any[], weeklyTasks: [] as any[], monthlyTasks: [] as any[], habits: [] as any[], mood: [] as any[], exercise: [] as any[], schedule: [] as any[], fullSchedule: [] as any[], scheduleItems: 0 };
+    const result: { day: string; tasks: { done: boolean; task: string; category: string; priority: string }[]; weeklyTasks: { done: boolean; task: string; priority: string; category: string; goal: string; completedDate: string }[]; monthlyTasks: { done: boolean; task: string; priority: string; category: string; goal: string; completedDate: string }[]; habits: { habit: string; done: boolean }[]; mood: { metric: string; value: number }[]; exercise: { exercise: string; value: number; unit: string }[]; schedule: { time: string; task: string }[]; fullSchedule: { time: string; task: string }[]; scheduleItems: number } = { day: block.day!, tasks: [], weeklyTasks: [], monthlyTasks: [], habits: [], mood: [], exercise: [], schedule: [], fullSchedule: [], scheduleItems: 0 };
     try {
       const schema = parseSchema(block.yaml);
       const expanded = schema.template ? expandTemplate(schema) : schema;
-      const sections = (expanded as any).sections;
+      const sections = (expanded as PlannerSchema).sections;
       // Use sections directly for weekly tasks (more reliable than subtable column detection)
       if (sections?.weeklyTasks) {
-        for (const t of sections.weeklyTasks as any[]) {
+        for (const t of sections.weeklyTasks as Record<string, string | number | boolean>[]) {
           if (t.task) {
             result.weeklyTasks.push({
               done: t.done === true, task: t.task,
@@ -1100,7 +1104,7 @@ export class BoardView extends TextFileView {
         }
       }
       if (sections?.monthlyTasks) {
-        for (const t of sections.monthlyTasks as any[]) {
+        for (const t of sections.monthlyTasks as Record<string, string | number | boolean>[]) {
           if (t.task) {
             result.monthlyTasks.push({
               done: t.done === true, task: t.task,
@@ -1110,21 +1114,19 @@ export class BoardView extends TextFileView {
         }
       }
       if (sections?.mood) {
-        for (const m of sections.mood as any[]) {
+        for (const m of sections.mood as Record<string, string | number | boolean>[]) {
           if (m.metric && m.value) result.mood.push({ metric: m.metric, value: Number(m.value) || 0 });
         }
       }
       if (sections?.exercise) {
-        for (const e of sections.exercise as any[]) {
+        for (const e of sections.exercise as Record<string, string | number | boolean>[]) {
           if (e.exercise && e.value) result.exercise.push({ exercise: e.exercise, value: Number(e.value) || 0, unit: e.unit || '' });
         }
       }
-      const subtables = (expanded as any)._subtables as Array<{
-        title: string; columns: any[]; data: Record<string, any>[];
-      }> | undefined;
+      const subtables = (expanded as PlannerSchema)._subtables;
       if (!subtables) return result;
       for (const sub of subtables) {
-        const colIds = sub.columns.map((c: any) => c.id);
+        const colIds = sub.columns.map((c) => c.id);
         if (colIds.includes('done') && colIds.includes('task') && colIds.includes('category') && !colIds.includes('completedDate')) {
           for (const row of sub.data) {
             if (row.task) {
@@ -1225,8 +1227,8 @@ export class BoardView extends TextFileView {
         text: createBtnText,
         cls: 'mod-cta',
       });
-      createBtn.addEventListener('click', async () => {
-        await this.addPlannerToBoard(templateName);
+      createBtn.addEventListener('click', () => {
+        void this.addPlannerToBoard(templateName);
       });
       return;
     }
@@ -1242,7 +1244,7 @@ export class BoardView extends TextFileView {
       });
       fileLink.addEventListener('click', (e) => {
         e.preventDefault();
-        this.app.workspace.openLinkText(block.file, '');
+        void this.app.workspace.openLinkText(block.file, '');
       });
       const cardBody = card.createDiv({ cls: 'planner-view-card-body planner-boards-root' });
       createPlanner(block.yaml, cardBody, {
@@ -1250,12 +1252,12 @@ export class BoardView extends TextFileView {
         onDataChange: async (newYaml: string) => {
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) return;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
@@ -1306,11 +1308,10 @@ export class BoardView extends TextFileView {
     // ── Save / Cancel buttons ──
     const btnRow = page.createDiv({ cls: 'planner-settings-buttons' });
     const saveBtn = btnRow.createEl('button', { text: isRu ? '💾 Сохранить' : '💾 Save', cls: 'mod-cta' });
-    saveBtn.addEventListener('click', async () => {
-      await this.saveConfig();
+    saveBtn.addEventListener('click', () => {
+      this.saveConfig();
       this.activeMode = 'planner';
-      await this.refresh();
-      new Notice(isRu ? 'Настройки сохранены' : 'Settings saved');
+      void this.refresh().then(() => new Notice(isRu ? 'Настройки сохранены' : 'Settings saved'));
     });
     const cancelBtn = btnRow.createEl('button', { text: isRu ? 'Отмена' : 'Cancel' });
     cancelBtn.addEventListener('click', () => {
@@ -1416,12 +1417,12 @@ export class BoardView extends TextFileView {
         for (const source of sources) {
           const row = calSection.createDiv({ cls: 'planner-settings-cal-row' });
           const dot = row.createEl('span', { cls: 'planner-view-legend-dot' });
-          dot.style.background = source.color;
+          dot.style.setProperty('--dot-color', source.color);
           const label = row.createEl('label', { cls: 'planner-settings-cal-label' });
           const cb = label.createEl('input', { type: 'checkbox' });
-          (cb as HTMLInputElement).checked = this.config.calendars.includes(source.id);
+          cb.checked = this.config.calendars.includes(source.id);
           cb.addEventListener('change', () => {
-            if ((cb as HTMLInputElement).checked) {
+            if (cb.checked) {
               if (!this.config.calendars.includes(source.id)) this.config.calendars.push(source.id);
             } else {
               this.config.calendars = this.config.calendars.filter(id => id !== source.id);
@@ -1637,12 +1638,12 @@ export class BoardView extends TextFileView {
     try {
       const schema = parseSchema(block.yaml);
       const expanded = schema.template ? expandTemplate(schema) : schema;
-      const sections = (expanded as any).sections;
+      const sections = (expanded as PlannerSchema).sections;
       if (!sections) return empty;
 
       const parseSection = (dataKey: string, catField: string) => {
-        const items = (sections[dataKey] as any[] | undefined) || [];
-        return items.filter((i: any) => i[catField] || i.category).map((i: any) => ({
+        const items = (sections[dataKey] as Record<string, string | number | boolean>[] | undefined) || [];
+        return items.filter((i: Record<string, string | number | boolean>) => i[catField] || i.category).map((i: Record<string, string | number | boolean>) => ({
           category: i[catField] || i.category || '',
           planned: i.planned || i.payment || i.target || 0,
           actual: i.actual || i.paid || i.current || 0,
@@ -1830,11 +1831,11 @@ export class BoardView extends TextFileView {
         const barsWrap = wrap.createDiv({ cls: 'planner-finance-compare-bars' });
         if (hasBudget) {
           const planBar = barsWrap.createDiv({ cls: 'planner-finance-compare-bar planner-finance-bar-plan' });
-          planBar.style.width = `${Math.round((planned / maxVal) * 100)}%`;
+          planBar.style.setProperty('--bar-width', `${Math.round((planned / maxVal) * 100)}%`);
           planBar.createSpan({ text: planned.toLocaleString(), cls: 'planner-finance-bar-text' });
         }
         const actBar = barsWrap.createDiv({ cls: 'planner-finance-compare-bar planner-finance-bar-actual' });
-        actBar.style.width = `${Math.round((actual / maxVal) * 100)}%`;
+        actBar.style.setProperty('--bar-width', `${Math.round((actual / maxVal) * 100)}%`);
         actBar.createSpan({ text: actual.toLocaleString(), cls: 'planner-finance-bar-text' });
       }
       if (hasBudget) {
@@ -1911,10 +1912,10 @@ export class BoardView extends TextFileView {
         for (const dc of dayChartData) {
           const barGroup = chartEl.createDiv({ cls: 'planner-yearly-chart-bar-group' });
           const incBar = barGroup.createDiv({ cls: 'planner-yearly-chart-bar planner-finance-bar-income' });
-          incBar.style.height = `${Math.round((dc.income / maxVal) * 100)}%`;
+          incBar.style.setProperty('--bar-height', `${Math.round((dc.income / maxVal) * 100)}%`);
           incBar.setAttribute('aria-label', `${isRu ? 'Доход' : 'Income'}: ${dc.income.toLocaleString()}`);
           const expBar = barGroup.createDiv({ cls: 'planner-yearly-chart-bar planner-finance-bar-expense' });
-          expBar.style.height = `${Math.round((dc.expenses / maxVal) * 100)}%`;
+          expBar.style.setProperty('--bar-height', `${Math.round((dc.expenses / maxVal) * 100)}%`);
           expBar.setAttribute('aria-label', `${isRu ? 'Расход' : 'Expense'}: ${dc.expenses.toLocaleString()}`);
           barGroup.createDiv({ cls: 'planner-yearly-chart-label', text: dc.label });
         }
@@ -2011,10 +2012,10 @@ export class BoardView extends TextFileView {
             tr.createEl('td', { text: `${Math.round((amount / catTotal) * 100)}%`, cls: 'planner-summary-number' });
             const barCell = tr.createEl('td');
             const bar = barCell.createDiv({ cls: 'planner-summary-progress-bar' });
-            bar.style.width = '100px';
+            bar.addClass('planner-chart-bar-fixed');
             const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-            fill.style.width = `${Math.round((amount / maxVal) * 100)}%`;
-            fill.style.backgroundColor = 'var(--text-accent)';
+            fill.style.setProperty('--bar-width', `${Math.round((amount / maxVal) * 100)}%`);
+            fill.addClass('planner-fill-accent');
           }
           // Total row
           const totalRow = tbl.createEl('tfoot').createEl('tr');
@@ -2046,10 +2047,10 @@ export class BoardView extends TextFileView {
             tr.createEl('td', { text: `${Math.round((amount / fixTotal) * 100)}%`, cls: 'planner-summary-number' });
             const barCell = tr.createEl('td');
             const bar = barCell.createDiv({ cls: 'planner-summary-progress-bar' });
-            bar.style.width = '100px';
+            bar.addClass('planner-chart-bar-fixed');
             const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-            fill.style.width = `${Math.round((amount / maxVal) * 100)}%`;
-            fill.style.backgroundColor = 'var(--text-accent)';
+            fill.style.setProperty('--bar-width', `${Math.round((amount / maxVal) * 100)}%`);
+            fill.addClass('planner-fill-accent');
           }
           const totalRow = tbl.createEl('tfoot').createEl('tr');
           totalRow.createEl('td', { text: isRu ? 'Итого' : 'Total' });
@@ -2309,11 +2310,11 @@ export class BoardView extends TextFileView {
         const barsWrap = wrap.createDiv({ cls: 'planner-finance-compare-bars' });
         if (hasBudget) {
           const planBar = barsWrap.createDiv({ cls: 'planner-finance-compare-bar planner-finance-bar-plan' });
-          planBar.style.width = `${Math.round((planned / maxVal) * 100)}%`;
+          planBar.style.setProperty('--bar-width', `${Math.round((planned / maxVal) * 100)}%`);
           planBar.createSpan({ text: planned.toLocaleString(), cls: 'planner-finance-bar-text' });
         }
         const actBar = barsWrap.createDiv({ cls: 'planner-finance-compare-bar planner-finance-bar-actual' });
-        actBar.style.width = `${Math.round((actual / maxVal) * 100)}%`;
+        actBar.style.setProperty('--bar-width', `${Math.round((actual / maxVal) * 100)}%`);
         actBar.createSpan({ text: actual.toLocaleString(), cls: 'planner-finance-bar-text' });
       }
       if (hasBudget) {
@@ -2339,10 +2340,10 @@ export class BoardView extends TextFileView {
       for (const md of monthData) {
         const barGroup = chartEl.createDiv({ cls: 'planner-yearly-chart-bar-group' });
         const incBar = barGroup.createDiv({ cls: 'planner-yearly-chart-bar planner-finance-bar-income' });
-        incBar.style.height = `${Math.round((md.income / maxVal) * 100)}%`;
+        incBar.style.setProperty('--bar-height', `${Math.round((md.income / maxVal) * 100)}%`);
         incBar.setAttribute('aria-label', `${isRu ? 'Доход' : 'Income'}: ${md.income.toLocaleString()}`);
         const expBar = barGroup.createDiv({ cls: 'planner-yearly-chart-bar planner-finance-bar-expense' });
-        expBar.style.height = `${Math.round((md.expenses / maxVal) * 100)}%`;
+        expBar.style.setProperty('--bar-height', `${Math.round((md.expenses / maxVal) * 100)}%`);
         expBar.setAttribute('aria-label', `${isRu ? 'Расход' : 'Expense'}: ${md.expenses.toLocaleString()}`);
         barGroup.createDiv({ cls: 'planner-yearly-chart-label', text: monthNames[md.month - 1].substring(0, 3) });
       }
@@ -2391,10 +2392,10 @@ export class BoardView extends TextFileView {
             tr.createEl('td', { text: `${Math.round((amount / catTotal) * 100)}%`, cls: 'planner-summary-number' });
             const barCell = tr.createEl('td');
             const bar = barCell.createDiv({ cls: 'planner-summary-progress-bar' });
-            bar.style.width = '100px';
+            bar.addClass('planner-chart-bar-fixed');
             const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-            fill.style.width = `${Math.round((amount / maxV) * 100)}%`;
-            fill.style.backgroundColor = 'var(--text-accent)';
+            fill.style.setProperty('--bar-width', `${Math.round((amount / maxV) * 100)}%`);
+            fill.addClass('planner-fill-accent');
           }
           const totalRow = tbl.createEl('tfoot').createEl('tr');
           totalRow.createEl('td', { text: isRu ? 'Итого' : 'Total' });
@@ -2424,10 +2425,10 @@ export class BoardView extends TextFileView {
             tr.createEl('td', { text: `${Math.round((amount / fixTotal) * 100)}%`, cls: 'planner-summary-number' });
             const barCell = tr.createEl('td');
             const bar = barCell.createDiv({ cls: 'planner-summary-progress-bar' });
-            bar.style.width = '100px';
+            bar.addClass('planner-chart-bar-fixed');
             const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-            fill.style.width = `${Math.round((amount / maxV) * 100)}%`;
-            fill.style.backgroundColor = 'var(--text-accent)';
+            fill.style.setProperty('--bar-width', `${Math.round((amount / maxV) * 100)}%`);
+            fill.addClass('planner-fill-accent');
           }
           const totalRow = tbl.createEl('tfoot').createEl('tr');
           totalRow.createEl('td', { text: isRu ? 'Итого' : 'Total' });
@@ -2455,8 +2456,8 @@ export class BoardView extends TextFileView {
           const barWrap = chartEl.createDiv({ cls: 'planner-yearly-chart-bar-wrap' });
           const pct = Math.round((Math.abs(bd.balance) / maxBal) * 100);
           const bar = barWrap.createDiv({ cls: 'planner-yearly-chart-bar' });
-          bar.style.height = `${pct}%`;
-          bar.style.backgroundColor = bd.balance >= 0 ? 'var(--color-green)' : 'var(--color-red)';
+          bar.style.setProperty('--bar-height', `${pct}%`);
+          bar.addClass(bd.balance >= 0 ? 'planner-fill-positive' : 'planner-fill-negative');
           bar.setAttribute('aria-label', `${monthNames[bd.month - 1]}: ${bd.balance.toLocaleString()}`);
           barWrap.createDiv({ cls: 'planner-yearly-chart-label', text: monthNames[bd.month - 1].substring(0, 3) });
         }
@@ -2544,37 +2545,37 @@ export class BoardView extends TextFileView {
     try {
       const schema = parseSchema(block.yaml);
       const expanded = schema.template ? expandTemplate(schema) : schema;
-      const sections = (expanded as any).sections;
+      const sections = (expanded as PlannerSchema).sections;
       if (!sections) return empty;
 
-      const result = { ...empty, income: [] as any[], fixed: [] as any[], variable: [] as any[], debts: [] as any[], savings: [] as any[], totals: { income: 0, fixed: 0, variable: 0, debts: 0, savings: 0 } };
+      const result = { ...empty, income: [] as Record<string, string | number | boolean>[], fixed: [] as Record<string, string | number | boolean>[], variable: [] as Record<string, string | number | boolean>[], debts: [] as Record<string, string | number | boolean>[], savings: [] as Record<string, string | number | boolean>[], totals: { income: 0, fixed: 0, variable: 0, debts: 0, savings: 0 } };
 
       if (sections.income) {
-        for (const item of sections.income as any[]) {
+        for (const item of sections.income as Record<string, string | number | boolean>[]) {
           const amt = Number(item.amount) || 0;
           if (amt > 0) { result.income.push({ source: item.source || '', amount: amt }); result.totals.income += amt; }
         }
       }
       if (sections.fixed_expenses) {
-        for (const item of sections.fixed_expenses as any[]) {
+        for (const item of sections.fixed_expenses as Record<string, string | number | boolean>[]) {
           const amt = Number(item.amount) || 0;
           if (amt > 0) { result.fixed.push({ category: item.category || '', amount: amt }); result.totals.fixed += amt; }
         }
       }
       if (sections.variable_expenses) {
-        for (const item of sections.variable_expenses as any[]) {
+        for (const item of sections.variable_expenses as Record<string, string | number | boolean>[]) {
           const amt = Number(item.amount) || 0;
           if (amt > 0) { result.variable.push({ category: item.category || '', description: item.description || '', amount: amt }); result.totals.variable += amt; }
         }
       }
       if (sections.debts) {
-        for (const item of sections.debts as any[]) {
+        for (const item of sections.debts as Record<string, string | number | boolean>[]) {
           const amt = Number(item.amount) || 0;
           if (amt > 0) { result.debts.push({ creditor: item.creditor || '', amount: amt }); result.totals.debts += amt; }
         }
       }
       if (sections.savings) {
-        for (const item of sections.savings as any[]) {
+        for (const item of sections.savings as Record<string, string | number | boolean>[]) {
           const amt = Number(item.amount) || 0;
           if (amt > 0) { result.savings.push({ goal: item.goal || '', amount: amt }); result.totals.savings += amt; }
         }
@@ -2596,8 +2597,8 @@ export class BoardView extends TextFileView {
         text: isRu ? '💰 Создать запись финансов' : '💰 Create finance entry',
         cls: 'mod-cta',
       });
-      createBtn.addEventListener('click', async () => {
-        await this.createDailyFinanceForDay(day);
+      createBtn.addEventListener('click', () => {
+        void this.createDailyFinanceForDay(day);
       });
       return;
     }
@@ -2614,7 +2615,7 @@ export class BoardView extends TextFileView {
       });
       fileLink.addEventListener('click', (e) => {
         e.preventDefault();
-        this.app.workspace.openLinkText(block.file, '');
+        void this.app.workspace.openLinkText(block.file, '');
       });
       const cardBody = card.createDiv({ cls: 'planner-view-card-body planner-boards-root' });
       createPlanner(block.yaml, cardBody, {
@@ -2626,12 +2627,12 @@ export class BoardView extends TextFileView {
         onDataChange: async (newYaml: string) => {
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) return;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
@@ -2712,17 +2713,17 @@ export class BoardView extends TextFileView {
         modal.close();
         try {
           const schema = parseSchema(block.yaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (!sections[section]) sections[section] = [];
           // Remove empty rows
-          sections[section] = sections[section].filter((r: any) => {
+          sections[section] = sections[section].filter((r: Record<string, string | number | boolean>) => {
             const vals = Object.values(r).filter(v => v !== '' && v !== 0 && v !== null && v !== undefined);
             return vals.length > 0;
           });
 
           // Build new row
-          const newRow: Record<string, any> = {};
+          const newRow: Record<string, string | number | boolean> = {};
           if (section === 'income') {
             newRow.source = values.source || ''; newRow.amount = Number(values.amount) || 0; newRow.comment = values.comment || '';
           } else if (section === 'fixed_expenses') {
@@ -2736,19 +2737,19 @@ export class BoardView extends TextFileView {
           }
           sections[section].push(newRow);
           // Add empty row at end for inline editing
-          const emptyRow: Record<string, any> = {};
+          const emptyRow: Record<string, string | number | boolean> = {};
           for (const key of Object.keys(newRow)) emptyRow[key] = '';
           sections[section].push(emptyRow);
 
           const newYaml = serializeSchema(schema);
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) return;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
@@ -2782,17 +2783,17 @@ export class BoardView extends TextFileView {
       try {
         const defaultSchema = parseSchema(this.config.templateDefaults['daily-finance']);
         const defaultExpanded = defaultSchema.template ? expandTemplate(defaultSchema) : defaultSchema;
-        const defaultSections = (defaultExpanded as any).sections;
+        const defaultSections = (defaultExpanded as PlannerSchema).sections;
         if (defaultSections) {
           const schema = parseSchema(templateYaml);
-          const sections = (schema as any).sections || {};
+          const sections = (schema as PlannerSchema).sections || {};
           for (const [key, data] of Object.entries(defaultSections)) {
             if (Array.isArray(data) && data.length > 0) {
-              const hasContent = data.some((row: any) => Object.values(row).some(v => v !== '' && v !== 0 && v !== false && v !== null && v !== undefined));
+              const hasContent = data.some((row: Record<string, string | number | boolean>) => Object.values(row).some(v => v !== '' && v !== 0 && v !== false && v !== null && v !== undefined));
               if (hasContent) sections[key] = data;
             }
           }
-          (schema as any).sections = sections;
+          (schema as PlannerSchema).sections = sections;
           templateYaml = serializeSchema(schema);
         }
       } catch { /* use default template */ }
@@ -2968,7 +2969,7 @@ export class BoardView extends TextFileView {
         wrap.createDiv({ cls: 'planner-finance-compare-label', text: `${icon} ${label}` });
         const barsWrap = wrap.createDiv({ cls: 'planner-finance-compare-bars' });
         const actBar = barsWrap.createDiv({ cls: 'planner-finance-compare-bar planner-finance-bar-actual' });
-        actBar.style.width = `${Math.round((amount / maxVal) * 100)}%`;
+        actBar.style.setProperty('--bar-width', `${Math.round((amount / maxVal) * 100)}%`);
         actBar.createSpan({ text: amount.toLocaleString(), cls: 'planner-finance-bar-text' });
       }
     }
@@ -3031,10 +3032,10 @@ export class BoardView extends TextFileView {
       for (const dc of dayChartData) {
         const barGroup = chartEl.createDiv({ cls: 'planner-yearly-chart-bar-group' });
         const incBar = barGroup.createDiv({ cls: 'planner-yearly-chart-bar planner-finance-bar-income' });
-        incBar.style.height = `${Math.round((dc.income / maxVal) * 100)}%`;
+        incBar.style.setProperty('--bar-height', `${Math.round((dc.income / maxVal) * 100)}%`);
         incBar.setAttribute('aria-label', `${isRu ? 'Доход' : 'Income'}: ${dc.income.toLocaleString()}`);
         const expBar = barGroup.createDiv({ cls: 'planner-yearly-chart-bar planner-finance-bar-expense' });
-        expBar.style.height = `${Math.round((dc.expenses / maxVal) * 100)}%`;
+        expBar.style.setProperty('--bar-height', `${Math.round((dc.expenses / maxVal) * 100)}%`);
         expBar.setAttribute('aria-label', `${isRu ? 'Расход' : 'Expense'}: ${dc.expenses.toLocaleString()}`);
         barGroup.createDiv({ cls: 'planner-yearly-chart-label', text: dc.label });
       }
@@ -3074,10 +3075,10 @@ export class BoardView extends TextFileView {
           tr.createEl('td', { text: `${Math.round((amount / catTotal) * 100)}%`, cls: 'planner-summary-number' });
           const barCell = tr.createEl('td');
           const bar = barCell.createDiv({ cls: 'planner-summary-progress-bar' });
-          bar.style.width = '100px';
+          bar.addClass('planner-chart-bar-fixed');
           const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-          fill.style.width = `${Math.round((amount / maxVal) * 100)}%`;
-          fill.style.backgroundColor = 'var(--text-accent)';
+          fill.style.setProperty('--bar-width', `${Math.round((amount / maxVal) * 100)}%`);
+          fill.addClass('planner-fill-accent');
         }
 
         // Also show fixed expenses breakdown if any
@@ -3109,10 +3110,10 @@ export class BoardView extends TextFileView {
             tr.createEl('td', { text: `${Math.round((amount / fixTotal) * 100)}%`, cls: 'planner-summary-number' });
             const barCell = tr.createEl('td');
             const bar = barCell.createDiv({ cls: 'planner-summary-progress-bar' });
-            bar.style.width = '100px';
+            bar.addClass('planner-chart-bar-fixed');
             const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-            fill.style.width = `${Math.round((amount / fixMax) * 100)}%`;
-            fill.style.backgroundColor = 'var(--text-accent)';
+            fill.style.setProperty('--bar-width', `${Math.round((amount / fixMax) * 100)}%`);
+            fill.addClass('planner-fill-accent');
           }
         }
       }
@@ -3127,7 +3128,7 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(block.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const data = (expanded as any).data as any[] | undefined;
+        const data = (expanded as PlannerSchema).data as Record<string, string | number | boolean>[] | undefined;
         if (!data) continue;
         for (const row of data) {
           if (!row.objective && !row.key_result) continue;
@@ -3185,10 +3186,10 @@ export class BoardView extends TextFileView {
     const progressWrap = dashboard.createDiv({ cls: 'planner-goals-overall-progress' });
     progressWrap.createSpan({ text: `${isRu ? 'Общий прогресс' : 'Overall Progress'}: ${avgProgress}%` });
     const bar = progressWrap.createDiv({ cls: 'planner-summary-progress-bar' });
-    bar.style.height = '12px';
+    bar.addClass('planner-progress-bar-tall');
     const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-    fill.style.width = `${avgProgress}%`;
-    fill.style.backgroundColor = avgProgress >= 70 ? 'var(--interactive-success)' : avgProgress >= 30 ? 'var(--text-accent)' : 'var(--text-error)';
+    fill.style.setProperty('--bar-width', `${avgProgress}%`);
+    fill.addClass(avgProgress >= 70 ? 'planner-fill-success' : avgProgress >= 30 ? 'planner-fill-accent' : 'planner-fill-error');
 
     // Group by quarter
     const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
@@ -3222,11 +3223,10 @@ export class BoardView extends TextFileView {
         tr.createEl('td', { text: String(g.current), cls: 'planner-summary-number' });
         const progCell = tr.createEl('td');
         const progBar = progCell.createDiv({ cls: 'planner-summary-progress-bar' });
-        progBar.style.width = '80px';
-        progBar.style.display = 'inline-block';
+        progBar.addClass('planner-progress-bar-inline');
         const progFill = progBar.createDiv({ cls: 'planner-summary-progress-fill' });
-        progFill.style.width = `${g.progress}%`;
-        progFill.style.backgroundColor = g.progress >= 70 ? 'var(--interactive-success)' : g.progress >= 30 ? 'var(--text-accent)' : 'var(--text-error)';
+        progFill.style.setProperty('--bar-width', `${g.progress}%`);
+        progFill.addClass(g.progress >= 70 ? 'planner-fill-success' : g.progress >= 30 ? 'planner-fill-accent' : 'planner-fill-error');
         progCell.createSpan({ text: ` ${g.progress}%`, cls: 'planner-summary-number' });
       }
     }
@@ -3298,11 +3298,10 @@ export class BoardView extends TextFileView {
       tr.createEl('td', { text: String(g.current), cls: 'planner-summary-number' });
       const progCell = tr.createEl('td');
       const progBar = progCell.createDiv({ cls: 'planner-summary-progress-bar' });
-      progBar.style.width = '80px';
-      progBar.style.display = 'inline-block';
+      progBar.addClass('planner-progress-bar-inline');
       const progFill = progBar.createDiv({ cls: 'planner-summary-progress-fill' });
-      progFill.style.width = `${g.progress}%`;
-      progFill.style.backgroundColor = g.progress >= 70 ? 'var(--interactive-success)' : g.progress >= 30 ? 'var(--text-accent)' : 'var(--text-error)';
+      progFill.style.setProperty('--bar-width', `${g.progress}%`);
+      progFill.addClass(g.progress >= 70 ? 'planner-fill-success' : g.progress >= 30 ? 'planner-fill-accent' : 'planner-fill-error');
       progCell.createSpan({ text: ` ${g.progress}%`, cls: 'planner-summary-number' });
     }
 
@@ -3329,11 +3328,10 @@ export class BoardView extends TextFileView {
         const avg = Math.round(qg.reduce((s, g2) => s + g2.progress, 0) / qg.length);
         const progCell = tr.createEl('td');
         const progBar = progCell.createDiv({ cls: 'planner-summary-progress-bar' });
-        progBar.style.width = '80px';
-        progBar.style.display = 'inline-block';
+        progBar.addClass('planner-progress-bar-inline');
         const progFill = progBar.createDiv({ cls: 'planner-summary-progress-fill' });
-        progFill.style.width = `${avg}%`;
-        progFill.style.backgroundColor = avg >= 70 ? 'var(--interactive-success)' : avg >= 30 ? 'var(--text-accent)' : 'var(--text-error)';
+        progFill.style.setProperty('--bar-width', `${avg}%`);
+        progFill.addClass(avg >= 70 ? 'planner-fill-success' : avg >= 30 ? 'planner-fill-accent' : 'planner-fill-error');
         progCell.createSpan({ text: ` ${avg}%`, cls: 'planner-summary-number' });
       }
     }
@@ -3424,8 +3422,8 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(block.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const data = (expanded as any).data as any[] | undefined;
-        const project = (expanded as any).project || (expanded as any).title || '';
+        const data = (expanded as PlannerSchema).data as Record<string, string | number | boolean>[] | undefined;
+        const project = (expanded as PlannerSchema)['project'] || (expanded as PlannerSchema).title || '';
         if (!data) continue;
         for (const row of data) {
           if (!row.task) continue;
@@ -3517,10 +3515,9 @@ export class BoardView extends TextFileView {
         }
         const progCell = tr.createEl('td');
         const progBar = progCell.createDiv({ cls: 'planner-summary-progress-bar' });
-        progBar.style.width = '80px';
-        progBar.style.display = 'inline-block';
+        progBar.addClass('planner-progress-bar-inline');
         const progFill = progBar.createDiv({ cls: 'planner-summary-progress-fill' });
-        progFill.style.width = `${t.progress}%`;
+        progFill.style.setProperty('--bar-width', `${t.progress}%`);
         progCell.createSpan({ text: ` ${t.progress}%`, cls: 'planner-summary-number' });
       }
     }
@@ -3566,7 +3563,7 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(block.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const data = (expanded as any).data as any[] | undefined;
+        const data = (expanded as PlannerSchema).data as Record<string, string | number | boolean>[] | undefined;
         if (!data) continue;
         for (const row of data) {
           if (!row.title) continue;
@@ -3637,9 +3634,9 @@ export class BoardView extends TextFileView {
         const progWrap = bookEl.createDiv({ cls: 'planner-reading-progress-wrap' });
         progWrap.createSpan({ text: `${book.read}/${book.pages} ${isRu ? 'стр.' : 'p.'} (${book.progress}%)` });
         const bar = progWrap.createDiv({ cls: 'planner-summary-progress-bar' });
-        bar.style.flex = '1';
+        bar.addClass('planner-progress-bar-flex');
         const fill = bar.createDiv({ cls: 'planner-summary-progress-fill' });
-        fill.style.width = `${book.progress}%`;
+        fill.style.setProperty('--bar-width', `${book.progress}%`);
       }
     }
 
@@ -3669,10 +3666,9 @@ export class BoardView extends TextFileView {
         tr.createEl('td', { text: book.status });
         const progCell = tr.createEl('td');
         const progBar = progCell.createDiv({ cls: 'planner-summary-progress-bar' });
-        progBar.style.width = '60px';
-        progBar.style.display = 'inline-block';
+        progBar.addClass('planner-progress-bar-inline-sm');
         const progFill = progBar.createDiv({ cls: 'planner-summary-progress-fill' });
-        progFill.style.width = `${book.progress}%`;
+        progFill.style.setProperty('--bar-width', `${book.progress}%`);
         progCell.createSpan({ text: ` ${book.progress}%`, cls: 'planner-summary-number' });
         const ratingCell = tr.createEl('td', { text: book.rating > 0 ? `${book.rating}/10` : '—', cls: 'planner-summary-number' });
         if (book.rating >= 8) ratingCell.classList.add('planner-summary-good');
@@ -3728,7 +3724,7 @@ export class BoardView extends TextFileView {
         const pRow = hdr.createDiv({ cls: 'planner-weekly-progress-row' });
         pRow.createSpan({ text: `${doneTasks}/${totalTasks} (${pct}%)`, cls: 'planner-weekly-progress-label' });
         const bar = pRow.createDiv({ cls: 'planner-summary-progress-bar' });
-        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.width = `${pct}%`;
+        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.setProperty('--bar-width', `${pct}%`);
       }
 
       const tasksByName = new Map<string, Map<string, { done: boolean; priority: string; category: string }>>();
@@ -3808,7 +3804,7 @@ export class BoardView extends TextFileView {
         const pRow = hdr.createDiv({ cls: 'planner-weekly-progress-row' });
         pRow.createSpan({ text: `${hPct}%`, cls: 'planner-weekly-progress-label' });
         const bar = pRow.createDiv({ cls: 'planner-summary-progress-bar' });
-        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.width = `${hPct}%`;
+        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.setProperty('--bar-width', `${hPct}%`);
       }
 
       if (allHabits.size > 0) {
@@ -3866,7 +3862,7 @@ export class BoardView extends TextFileView {
         const pRow = hdr.createDiv({ cls: 'planner-weekly-progress-row' });
         pRow.createSpan({ text: `${wDone}/${wTotal} (${wPct}%)`, cls: 'planner-weekly-progress-label' });
         const bar = pRow.createDiv({ cls: 'planner-summary-progress-bar' });
-        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.width = `${wPct}%`;
+        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.setProperty('--bar-width', `${wPct}%`);
       }
 
       if (allWeeklyTasks.size > 0) {
@@ -3937,7 +3933,7 @@ export class BoardView extends TextFileView {
     };
 
     const renderScheduleGrid = () => {
-      daysContainer.innerHTML = '';
+      while (daysContainer.firstChild) daysContainer.removeChild(daysContainer.firstChild);
       const slots: string[] = [];
       for (let m = 360; m <= 1320; m += viewInterval) {
         slots.push(minutesToTime(m));
@@ -4098,9 +4094,9 @@ export class BoardView extends TextFileView {
         try {
           const rawSchema = parseSchema(day.block.yaml);
           const expanded = rawSchema.template ? expandTemplate(rawSchema) : rawSchema;
-          const sections = (expanded as any).sections;
+          const sections = (expanded as PlannerSchema).sections;
           if (sections?.notes) {
-            for (const n of sections.notes as any[]) {
+            for (const n of sections.notes as Record<string, string | number | boolean>[]) {
               if (n.note) weekNotes.push({ day: day.date, label: day.label, task: n.task || '', note: n.note });
             }
           }
@@ -4204,10 +4200,10 @@ export class BoardView extends TextFileView {
         try {
           const schema = parseSchema(block.yaml);
           if (!schema.sections) continue;
-          const sections = (schema as any).sections;
+          const sections = (schema as PlannerSchema).sections;
           const sectionKey = type === 'weeklyTasks' ? 'weeklyTasks' : type === 'monthlyTasks' ? 'monthlyTasks' : type === 'dailyTasks' ? 'tasks' : 'habits';
           const nameField = type === 'habits' ? 'habit' : 'task';
-          const items = sections[sectionKey] as any[];
+          const items = sections[sectionKey] as Record<string, string | number | boolean>[];
           if (!items) continue;
           let changed = false;
           for (const row of items) {
@@ -4226,18 +4222,18 @@ export class BoardView extends TextFileView {
           const newYaml = serializeSchema(schema);
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) continue;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
         } catch { /* skip */ }
       }
-      this.refresh();
+      void this.refresh();
     }));
     btnRow.addButton(btn => btn.setButtonText(isRu ? 'Удалить' : 'Delete').setWarning().onClick(async () => {
       modal.close();
@@ -4246,15 +4242,15 @@ export class BoardView extends TextFileView {
         try {
           const schema = parseSchema(block.yaml);
           if (!schema.sections) continue;
-          const sections = (schema as any).sections;
+          const sections = (schema as PlannerSchema).sections;
           const sectionKey = type === 'weeklyTasks' ? 'weeklyTasks' : type === 'monthlyTasks' ? 'monthlyTasks' : type === 'dailyTasks' ? 'tasks' : 'habits';
           const nameField = type === 'habits' ? 'habit' : 'task';
-          const items = sections[sectionKey] as any[];
+          const items = sections[sectionKey] as Record<string, string | number | boolean>[];
           if (!items) continue;
-          const filtered = items.filter((row: any) => row[nameField] !== oldName);
+          const filtered = items.filter((row: Record<string, string | number | boolean>) => row[nameField] !== oldName);
           if (filtered.length === items.length) continue;
-          if (filtered.length === 0 || !filtered.some((r: any) => !r[nameField])) {
-            const empty: any = {};
+          if (filtered.length === 0 || !filtered.some((r: Record<string, string | number | boolean>) => !r[nameField])) {
+            const empty: Record<string, string | number | boolean> = {};
             for (const key of Object.keys(items[0] || {})) empty[key] = key === 'done' ? false : '';
             filtered.push(empty);
           }
@@ -4262,24 +4258,24 @@ export class BoardView extends TextFileView {
           const newYaml = serializeSchema(schema);
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) continue;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
         } catch { /* skip */ }
       }
-      this.refresh();
+      void this.refresh();
     }));
     modal.open();
   }
 
   /** Add a weekly task or habit from the weekly dashboard, syncing to all dailies */
-  private async addWeeklyItem(
+  private addWeeklyItem(
     type: 'weeklyTasks' | 'monthlyTasks' | 'habits' | 'dailyTasks',
     week: number, year: number,
     days: { date: string; dayName: string; dayNum: number }[],
@@ -4356,29 +4352,29 @@ export class BoardView extends TextFileView {
         for (const block of dailyBlocks) {
           try {
             const schema = parseSchema(block.yaml);
-            if (!schema.sections) (schema as any).sections = {};
-            const sections = (schema as any).sections;
+            if (!schema.sections) (schema as PlannerSchema).sections = {};
+            const sections = (schema as PlannerSchema).sections;
 
             if (type === 'weeklyTasks' || type === 'monthlyTasks') {
               const key = type === 'monthlyTasks' ? 'monthlyTasks' : 'weeklyTasks';
               if (!sections[key]) sections[key] = [];
-              const existing = (sections[key] as any[]).some((t: any) => t.task === nameVal);
+              const existing = (sections[key] as Record<string, string | number | boolean>[]).some((t: Record<string, string | number | boolean>) => t.task === nameVal);
               if (existing) continue;
-              sections[key] = sections[key].filter((t: any) => t.task);
+              sections[key] = sections[key].filter((t: Record<string, string | number | boolean>) => t.task);
               sections[key].push({ done: false, task: nameVal, priority: priorityVal, category: categoryVal, completedDate: '' });
               sections[key].push({ done: false, task: '', priority: '', category: '', completedDate: '' });
             } else if (type === 'dailyTasks') {
               if (!sections.tasks) sections.tasks = [];
-              const existing = (sections.tasks as any[]).some((t: any) => t.task === nameVal);
+              const existing = (sections.tasks as Record<string, string | number | boolean>[]).some((t: Record<string, string | number | boolean>) => t.task === nameVal);
               if (existing) continue;
-              sections.tasks = sections.tasks.filter((t: any) => t.task);
+              sections.tasks = sections.tasks.filter((t: Record<string, string | number | boolean>) => t.task);
               sections.tasks.push({ done: false, task: nameVal, priority: priorityVal, category: categoryVal });
               sections.tasks.push({ done: false, task: '', priority: '', category: '' });
             } else {
               if (!sections.habits) sections.habits = [];
-              const existing = (sections.habits as any[]).some((h: any) => h.habit === nameVal);
+              const existing = (sections.habits as Record<string, string | number | boolean>[]).some((h: Record<string, string | number | boolean>) => h.habit === nameVal);
               if (existing) continue;
-              sections.habits = sections.habits.filter((h: any) => h.habit);
+              sections.habits = sections.habits.filter((h: Record<string, string | number | boolean>) => h.habit);
               sections.habits.push({ habit: nameVal, description: descVal, done: false });
               sections.habits.push({ habit: '', description: '', done: false });
             }
@@ -4386,12 +4382,12 @@ export class BoardView extends TextFileView {
             const newYaml = serializeSchema(schema);
             const file = this.app.vault.getAbstractFileByPath(block.file);
             if (!file) continue;
-            const content = await this.app.vault.read(file as any);
+            const content = await this.app.vault.read(file as TFile);
             const searchStr = '```planner\n' + block.originalYaml + '```';
             const replaceStr = '```planner\n' + newYaml + '\n```';
             const newContent = content.replace(searchStr, replaceStr);
             if (newContent !== content) {
-              await this.app.vault.modify(file as any, newContent);
+              await this.app.vault.modify(file as TFile, newContent);
               block.originalYaml = newYaml + '\n';
               block.yaml = newYaml;
             }
@@ -4416,10 +4412,10 @@ export class BoardView extends TextFileView {
     const taskNames: string[] = [];
     try {
       const schema = parseSchema(block.yaml);
-      const sections = (schema as any).sections || {};
+      const sections = (schema as PlannerSchema).sections || {};
       for (const key of ['tasks', 'weeklyTasks', 'monthlyTasks']) {
-        const arr = sections[key] as any[] | undefined;
-        if (arr) arr.forEach((t: any) => { if (t.task?.trim()) taskNames.push(t.task.trim()); });
+        const arr = sections[key] as Record<string, string | number | boolean>[] | undefined;
+        if (arr) arr.forEach((t: Record<string, string | number | boolean>) => { if ((t.task as string)?.trim()) taskNames.push((t.task as string).trim()); });
       }
     } catch { /* skip */ }
 
@@ -4440,21 +4436,21 @@ export class BoardView extends TextFileView {
         modal.close();
         try {
           const schema = parseSchema(block.yaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (!sections.notes) sections.notes = [];
-          sections.notes = sections.notes.filter((n: any) => n.note || n.task);
+          sections.notes = sections.notes.filter((n: Record<string, string | number | boolean>) => n.note || n.task);
           sections.notes.push({ task: taskVal, note: noteVal });
           sections.notes.push({ task: '', note: '' });
           const newYaml = serializeSchema(schema);
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) return;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
@@ -4486,21 +4482,21 @@ export class BoardView extends TextFileView {
         modal.close();
         try {
           const schema = parseSchema(block.yaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (!sections.mood) sections.mood = [];
-          sections.mood = sections.mood.filter((m: any) => m.metric || m.value);
+          sections.mood = sections.mood.filter((m: Record<string, string | number | boolean>) => m.metric || m.value);
           sections.mood.push({ metric: metricVal, value: Number(valueVal) || 0 });
           sections.mood.push({ metric: '', value: '' });
           const newYaml = serializeSchema(schema);
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) return;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
@@ -4536,21 +4532,21 @@ export class BoardView extends TextFileView {
         modal.close();
         try {
           const schema = parseSchema(block.yaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (!sections.exercise) sections.exercise = [];
-          sections.exercise = sections.exercise.filter((e: any) => e.exercise || e.value);
+          sections.exercise = sections.exercise.filter((e: Record<string, string | number | boolean>) => e.exercise || e.value);
           sections.exercise.push({ exercise: exerciseVal, value: Number(valueVal) || 0, unit: unitVal });
           sections.exercise.push({ exercise: '', value: '', unit: '' });
           const newYaml = serializeSchema(schema);
           const file = this.app.vault.getAbstractFileByPath(block.file);
           if (!file) return;
-          const content = await this.app.vault.read(file as any);
+          const content = await this.app.vault.read(file as TFile);
           const searchStr = '```planner\n' + block.originalYaml + '```';
           const replaceStr = '```planner\n' + newYaml + '\n```';
           const newContent = content.replace(searchStr, replaceStr);
           if (newContent !== content) {
-            await this.app.vault.modify(file as any, newContent);
+            await this.app.vault.modify(file as TFile, newContent);
             block.originalYaml = newYaml + '\n';
             block.yaml = newYaml;
           }
@@ -4634,7 +4630,7 @@ export class BoardView extends TextFileView {
       card.createEl('div', { text: value, cls: 'planner-monthly-stat-value' });
       if (pct >= 0) {
         const bar = card.createDiv({ cls: 'planner-summary-progress-bar' });
-        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.width = `${pct}%`;
+        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.setProperty('--bar-width', `${pct}%`);
       }
     };
     makeCard('📅', isRu ? 'Планеров' : 'Planners', `${dailyBlocks.length}/${daysInMonth}`, Math.round((dailyBlocks.length / daysInMonth) * 100));
@@ -4921,12 +4917,12 @@ export class BoardView extends TextFileView {
         const barsRow = barGroup.createDiv({ cls: 'planner-chart-bars' });
         // Tasks bar
         const taskBar = barsRow.createDiv({ cls: 'planner-chart-bar planner-chart-bar-tasks' });
-        taskBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.width = `${taskPctW}%`;
+        taskBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.setProperty('--bar-width', `${taskPctW}%`);
         taskBar.setAttribute('title', `${isRu ? 'Задачи' : 'Tasks'}: ${taskPctW}%`);
         taskBar.createEl('span', { text: `${taskPctW}%`, cls: 'planner-chart-bar-text' });
         // Habits bar
         const habitBar = barsRow.createDiv({ cls: 'planner-chart-bar planner-chart-bar-habits' });
-        habitBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.width = `${habitPctW}%`;
+        habitBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.setProperty('--bar-width', `${habitPctW}%`);
         habitBar.setAttribute('title', `${isRu ? 'Привычки' : 'Habits'}: ${habitPctW}%`);
         habitBar.createEl('span', { text: `${habitPctW}%`, cls: 'planner-chart-bar-text' });
       }
@@ -5049,9 +5045,9 @@ export class BoardView extends TextFileView {
           const block = dailyBlocks.find(b => b.day === day)!;
           const rawSchema = parseSchema(block.yaml);
           const expanded = rawSchema.template ? expandTemplate(rawSchema) : rawSchema;
-          const sections = (expanded as any).sections;
+          const sections = (expanded as PlannerSchema).sections;
           if (sections?.notes) {
-            for (const n of sections.notes as any[]) {
+            for (const n of sections.notes as Record<string, string | number | boolean>[]) {
               if (n.note) noteData.push({ day, task: n.task || '', note: n.note });
             }
           }
@@ -5170,7 +5166,7 @@ export class BoardView extends TextFileView {
       card.createEl('div', { text: value, cls: 'planner-monthly-stat-value' });
       if (pct >= 0) {
         const bar = card.createDiv({ cls: 'planner-summary-progress-bar' });
-        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.width = `${pct}%`;
+        bar.createDiv({ cls: 'planner-summary-progress-fill' }).style.setProperty('--bar-width', `${pct}%`);
       }
     };
     makeCard('📅', isRu ? 'Планеров' : 'Planners', `${dailyBlocks.length}`, -1);
@@ -5365,7 +5361,6 @@ export class BoardView extends TextFileView {
       monthLabelsRow.createDiv({ cls: 'planner-yearly-heatmap-spacer' }); // space for day labels
       {
         const jan1 = new Date(year, 0, 1);
-        const startWeekCol = 0;
         let prevMonth = -1;
         const totalWeeks = 53;
         for (let w = 0; w < totalWeeks; w++) {
@@ -5440,11 +5435,11 @@ export class BoardView extends TextFileView {
         barGroup.createEl('div', { text: monthNames[pm.month - 1].substring(0, 3), cls: 'planner-chart-label' });
         const barsRow = barGroup.createDiv({ cls: 'planner-chart-bars' });
         const taskBar = barsRow.createDiv({ cls: 'planner-chart-bar planner-chart-bar-tasks' });
-        taskBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.width = `${tPct}%`;
+        taskBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.setProperty('--bar-width', `${tPct}%`);
         taskBar.setAttribute('title', `${isRu ? 'Задачи' : 'Tasks'}: ${tPct}%`);
         taskBar.createEl('span', { text: `${tPct}%`, cls: 'planner-chart-bar-text' });
         const habitBar = barsRow.createDiv({ cls: 'planner-chart-bar planner-chart-bar-habits' });
-        habitBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.width = `${hPct}%`;
+        habitBar.createDiv({ cls: 'planner-chart-bar-fill' }).style.setProperty('--bar-width', `${hPct}%`);
         habitBar.setAttribute('title', `${isRu ? 'Привычки' : 'Habits'}: ${hPct}%`);
         habitBar.createEl('span', { text: `${hPct}%`, cls: 'planner-chart-bar-text' });
       }
@@ -5566,9 +5561,9 @@ export class BoardView extends TextFileView {
           const block = dailyBlocks.find(b => b.day === day)!;
           const rawSchema = parseSchema(block.yaml);
           const expanded = rawSchema.template ? expandTemplate(rawSchema) : rawSchema;
-          const sections = (expanded as any).sections;
+          const sections = (expanded as PlannerSchema).sections;
           if (sections?.notes) {
-            for (const n of sections.notes as any[]) {
+            for (const n of sections.notes as Record<string, string | number | boolean>[]) {
               if (n.note) noteData.push({ day, task: n.task || '', note: n.note });
             }
           }
@@ -5625,8 +5620,8 @@ export class BoardView extends TextFileView {
   private async addPlannerToBoard(templateKey: string) {
     // For daily planner not at day level, prompt for date first
     if (templateKey === 'daily-planner' && !this.nav.day) {
-      new DailyDatePickerModal(this.app, async (selectedDay: string) => {
-        await this.createDailyPlannerForDay(selectedDay);
+      new DailyDatePickerModal(this.app, (selectedDay: string) => {
+        void this.createDailyPlannerForDay(selectedDay);
       }).open();
       return;
     }
@@ -5701,17 +5696,17 @@ export class BoardView extends TextFileView {
       try {
         const defaultSchema = parseSchema(this.config.templateDefaults['daily-planner']);
         const defaultExpanded = defaultSchema.template ? expandTemplate(defaultSchema) : defaultSchema;
-        const defaultSections = (defaultExpanded as any).sections;
+        const defaultSections = (defaultExpanded as PlannerSchema).sections;
         if (defaultSections) {
           const schema = parseSchema(templateYaml);
-          const sections = (schema as any).sections || {};
+          const sections = (schema as PlannerSchema).sections || {};
           for (const [key, data] of Object.entries(defaultSections)) {
             if (Array.isArray(data) && data.length > 0) {
-              const hasContent = data.some((row: any) => Object.values(row).some(v => v !== '' && v !== 0 && v !== false && v !== null && v !== undefined));
+              const hasContent = data.some((row: Record<string, string | number | boolean>) => Object.values(row).some(v => v !== '' && v !== 0 && v !== false && v !== null && v !== undefined));
               if (hasContent) sections[key] = data;
             }
           }
-          (schema as any).sections = sections;
+          (schema as PlannerSchema).sections = sections;
           templateYaml = serializeSchema(schema);
         }
       } catch { /* use default template */ }
@@ -5721,7 +5716,7 @@ export class BoardView extends TextFileView {
     const carryOver = this.getCarryOverData(day);
     if (carryOver) {
       const schema = parseSchema(templateYaml);
-      const sections = (schema as any).sections || {};
+      const sections = (schema as PlannerSchema).sections || {};
       if (carryOver.tasks.length > 0) {
         sections.tasks = [...carryOver.tasks, { done: false, task: '', priority: '', category: '' }];
       }
@@ -5731,7 +5726,7 @@ export class BoardView extends TextFileView {
       if (carryOver.habits.length > 0) {
         sections.habits = [...carryOver.habits, { habit: '', description: '', done: false }];
       }
-      (schema as any).sections = sections;
+      (schema as PlannerSchema).sections = sections;
       templateYaml = serializeSchema(schema);
     }
 
@@ -5777,9 +5772,9 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(prevBlock.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const sections = (expanded as any).sections;
+        const sections = (expanded as PlannerSchema).sections;
         if (sections?.tasks) {
-          for (const t of sections.tasks as any[]) {
+          for (const t of sections.tasks as Record<string, string | number | boolean>[]) {
             if (t.task && !t.done) {
               result.tasks.push({ done: false, task: t.task, priority: t.priority || '', category: t.category || '' });
             }
@@ -5795,9 +5790,9 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(block.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const sections = (expanded as any).sections;
+        const sections = (expanded as PlannerSchema).sections;
         if (sections?.tasks) {
-          for (const t of sections.tasks as any[]) {
+          for (const t of sections.tasks as Record<string, string | number | boolean>[]) {
             if (t.task && !seenTasks.has(t.task)) {
               seenTasks.add(t.task);
               result.tasks.push({ done: false, task: t.task, priority: t.priority || '', category: t.category || '' });
@@ -5815,9 +5810,9 @@ export class BoardView extends TextFileView {
       try {
         const schema = parseSchema(block.yaml);
         const expanded = schema.template ? expandTemplate(schema) : schema;
-        const sections = (expanded as any).sections;
+        const sections = (expanded as PlannerSchema).sections;
         if (sections?.weeklyTasks) {
-          for (const t of sections.weeklyTasks as any[]) {
+          for (const t of sections.weeklyTasks as Record<string, string | number | boolean>[]) {
             if (t.task) {
               const existing = allWeeklyTasks.get(t.task);
               if (!existing || (t.done && !existing.done)) {
@@ -5831,7 +5826,7 @@ export class BoardView extends TextFileView {
           }
         }
         if (sections?.habits) {
-          for (const h of sections.habits as any[]) {
+          for (const h of sections.habits as Record<string, string | number | boolean>[]) {
             if (h.habit && !allHabits.has(h.habit)) {
               allHabits.set(h.habit, { habit: h.habit, description: h.description || '' });
             }
@@ -5897,8 +5892,7 @@ class DailyDatePickerModal extends Modal {
 
     const input = contentEl.createEl('input', { type: 'date' });
     input.value = defaultVal;
-    input.style.width = '100%';
-    input.style.marginBottom = '1em';
+    input.addClass('planner-date-input-full');
 
     const btnContainer = contentEl.createDiv({ cls: 'modal-button-container' });
     const btn = btnContainer.createEl('button', { text: t('ui.create'), cls: 'mod-cta' });
@@ -5960,7 +5954,7 @@ export class PlannerFileView extends TextFileView {
     return 'file-check';
   }
 
-  async onOpen() {
+  onOpen() {
     const root = this.contentEl;
     root.empty();
     root.addClass('planner-file-root');
@@ -5982,7 +5976,7 @@ export class PlannerFileView extends TextFileView {
             // Check if it's a board file by looking in open leaves
             const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_BOARD);
             for (const leaf of leaves) {
-              if ((leaf.view as any).file?.path === child.path) return child;
+              if ((leaf.view as TextFileView).file?.path === child.path) return child;
             }
           }
         }
@@ -5990,14 +5984,13 @@ export class PlannerFileView extends TextFileView {
     }
     // Fallback: find any open board leaf
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_BOARD);
-    if (leaves.length > 0) return (leaves[0].view as any).file || null;
+    if (leaves.length > 0) return (leaves[0].view as TextFileView).file ?? null;
     return null;
   }
 
   private buildNavHeader(header: HTMLElement) {
     header.empty();
     const breadcrumb = header.createDiv({ cls: 'planner-board-breadcrumb' });
-    const filePath = this.file?.path || '';
     const fileName = this.file?.basename || '';
 
     if (!fileName) {
@@ -6017,7 +6010,7 @@ export class PlannerFileView extends TextFileView {
     const boardFile = this.findBoardFile();
     if (boardFile) {
       addCrumb('📋 ' + boardFile.basename, () => {
-        this.app.workspace.openLinkText(boardFile.path, '');
+        void this.app.workspace.openLinkText(boardFile.path, '');
       });
     }
 
@@ -6064,7 +6057,7 @@ export class PlannerFileView extends TextFileView {
     const targetPath = `${dailyDir}/${monthName} ${y}/${dateStr}.planner`;
     const targetFile = this.app.vault.getAbstractFileByPath(targetPath);
     if (targetFile) {
-      this.app.workspace.openLinkText(targetPath, '');
+      void this.app.workspace.openLinkText(targetPath, '');
     } else {
       new Notice(t('board.noDailyForDate', { date: dateStr }));
     }
@@ -6204,22 +6197,22 @@ export class PlannerFileView extends TextFileView {
         const rawYaml = match[1].trim();
         try {
           const schema = parseSchema(rawYaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (type === 'weeklyTasks' || type === 'monthlyTasks') {
             const key = type === 'monthlyTasks' ? 'monthlyTasks' : 'weeklyTasks';
             if (!sections[key]) sections[key] = [];
-            sections[key] = sections[key].filter((t: any) => t.task);
+            sections[key] = sections[key].filter((t: Record<string, string | number | boolean>) => t.task);
             sections[key].push({ done: false, task: nameVal, priority: priorityVal, category: categoryVal, completedDate: '' });
             sections[key].push({ done: false, task: '', priority: '', category: '', completedDate: '' });
           } else if (type === 'dailyTasks') {
             if (!sections.tasks) sections.tasks = [];
-            sections.tasks = sections.tasks.filter((t: any) => t.task);
+            sections.tasks = sections.tasks.filter((t: Record<string, string | number | boolean>) => t.task);
             sections.tasks.push({ done: false, task: nameVal, priority: priorityVal, category: categoryVal });
             sections.tasks.push({ done: false, task: '', priority: '', category: '' });
           } else {
             if (!sections.habits) sections.habits = [];
-            sections.habits = sections.habits.filter((h: any) => h.habit);
+            sections.habits = sections.habits.filter((h: Record<string, string | number | boolean>) => h.habit);
             sections.habits.push({ habit: nameVal, description: descVal, done: false });
             sections.habits.push({ habit: '', description: '', done: false });
           }
@@ -6256,10 +6249,10 @@ export class PlannerFileView extends TextFileView {
     if (m) {
       try {
         const schema = parseSchema(m[1].trim());
-        const sections = (schema as any).sections || {};
+        const sections = (schema as PlannerSchema).sections || {};
         for (const key of ['tasks', 'weeklyTasks', 'monthlyTasks']) {
-          const arr = sections[key] as any[] | undefined;
-          if (arr) arr.forEach((t: any) => { if (t.task?.trim()) taskNames.push(t.task.trim()); });
+          const arr = sections[key] as Record<string, string | number | boolean>[] | undefined;
+          if (arr) arr.forEach((t: Record<string, string | number | boolean>) => { if ((t.task as string)?.trim()) taskNames.push((t.task as string).trim()); });
         }
       } catch { /* skip */ }
     }
@@ -6285,10 +6278,10 @@ export class PlannerFileView extends TextFileView {
         const rawYaml = match[1].trim();
         try {
           const schema = parseSchema(rawYaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (!sections.notes) sections.notes = [];
-          sections.notes = sections.notes.filter((n: any) => n.note || n.task);
+          sections.notes = sections.notes.filter((n: Record<string, string | number | boolean>) => n.note || n.task);
           sections.notes.push({ task: taskVal, note: noteVal });
           sections.notes.push({ task: '', note: '' });
           const newYaml = serializeSchema(schema);
@@ -6329,10 +6322,10 @@ export class PlannerFileView extends TextFileView {
         const rawYaml = match[1].trim();
         try {
           const schema = parseSchema(rawYaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (!sections.mood) sections.mood = [];
-          sections.mood = sections.mood.filter((m: any) => m.metric || m.value);
+          sections.mood = sections.mood.filter((m: Record<string, string | number | boolean>) => m.metric || m.value);
           sections.mood.push({ metric: metricVal, value: Number(valueVal) || 0 });
           sections.mood.push({ metric: '', value: '' });
           const newYaml = serializeSchema(schema);
@@ -6377,10 +6370,10 @@ export class PlannerFileView extends TextFileView {
         const rawYaml = match[1].trim();
         try {
           const schema = parseSchema(rawYaml);
-          if (!schema.sections) (schema as any).sections = {};
-          const sections = (schema as any).sections;
+          if (!schema.sections) (schema as PlannerSchema).sections = {};
+          const sections = (schema as PlannerSchema).sections;
           if (!sections.exercise) sections.exercise = [];
-          sections.exercise = sections.exercise.filter((e: any) => e.exercise || e.value);
+          sections.exercise = sections.exercise.filter((e: Record<string, string | number | boolean>) => e.exercise || e.value);
           sections.exercise.push({ exercise: exerciseVal, value: Number(valueVal) || 0, unit: unitVal });
           sections.exercise.push({ exercise: '', value: '', unit: '' });
           const newYaml = serializeSchema(schema);
@@ -6409,21 +6402,21 @@ export class PlannerFileView extends TextFileView {
     try {
       const schema = parseSchema(changedYaml);
       const expanded = schema.template ? expandTemplate(schema) : schema;
-      const sections = (expanded as any).sections;
+      const sections = (expanded as PlannerSchema).sections;
       if (sections?.habits) {
-        changedHabits = (sections.habits as any[])
-          .filter((h: any) => h.habit)
-          .map((h: any) => ({ habit: h.habit, description: h.description || '' }));
+        changedHabits = (sections.habits as Record<string, string | number | boolean>[])
+          .filter((h: Record<string, string | number | boolean>) => h.habit)
+          .map((h: Record<string, string | number | boolean>) => ({ habit: h.habit, description: h.description || '' }));
       }
       if (sections?.weeklyTasks) {
-        changedWeeklyTasks = (sections.weeklyTasks as any[])
-          .filter((t: any) => t.task)
-          .map((t: any) => ({ task: t.task, priority: t.priority || '', category: t.category || '' }));
+        changedWeeklyTasks = (sections.weeklyTasks as Record<string, string | number | boolean>[])
+          .filter((t: Record<string, string | number | boolean>) => t.task)
+          .map((t: Record<string, string | number | boolean>) => ({ task: t.task, priority: t.priority || '', category: t.category || '' }));
       }
       if (sections?.tasks) {
-        changedDailyTasks = (sections.tasks as any[])
-          .filter((t: any) => t.task)
-          .map((t: any) => ({ task: t.task, priority: t.priority || '', category: t.category || '' }));
+        changedDailyTasks = (sections.tasks as Record<string, string | number | boolean>[])
+          .filter((t: Record<string, string | number | boolean>) => t.task)
+          .map((t: Record<string, string | number | boolean>) => ({ task: t.task, priority: t.priority || '', category: t.category || '' }));
       }
     } catch { return; }
 
@@ -6451,17 +6444,17 @@ export class PlannerFileView extends TextFileView {
         const schema = parseSchema(yamlStr);
         if (schema.template !== 'daily-planner') continue;
 
-        if (!schema.sections) (schema as any).sections = {};
-        const sections = (schema as any).sections;
+        if (!schema.sections) (schema as PlannerSchema).sections = {};
+        const sections = (schema as PlannerSchema).sections;
         let updated = false;
 
         // Sync habits
         if (changedHabits.length > 0) {
           if (!sections.habits) sections.habits = [];
-          const existingNames = new Set((sections.habits as any[]).map((h: any) => h.habit).filter(Boolean));
+          const existingNames = new Set((sections.habits as Record<string, string | number | boolean>[]).map((h: Record<string, string | number | boolean>) => h.habit).filter(Boolean));
           for (const ch of changedHabits) {
             if (!existingNames.has(ch.habit)) {
-              sections.habits = sections.habits.filter((h: any) => h.habit);
+              sections.habits = sections.habits.filter((h: Record<string, string | number | boolean>) => h.habit);
               sections.habits.push({ habit: ch.habit, description: ch.description, done: false });
               updated = true;
             }
@@ -6472,20 +6465,20 @@ export class PlannerFileView extends TextFileView {
         // Sync weekly tasks
         if (changedWeeklyTasks.length > 0) {
           if (!sections.weeklyTasks) sections.weeklyTasks = [];
-          const existingTasks = new Map<string, any>();
-          for (const t of sections.weeklyTasks as any[]) {
+          const existingTasks = new Map<string, Record<string, string | number | boolean>>();
+          for (const t of sections.weeklyTasks as Record<string, string | number | boolean>[]) {
             if (t.task) existingTasks.set(t.task, t);
           }
           for (const ct of changedWeeklyTasks) {
             const existing = existingTasks.get(ct.task);
             if (!existing) {
-              sections.weeklyTasks = sections.weeklyTasks.filter((t: any) => t.task);
+              sections.weeklyTasks = sections.weeklyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
               sections.weeklyTasks.push({ done: false, task: ct.task, priority: ct.priority, category: ct.category, completedDate: '' });
               updated = true;
             }
           }
           if (updated) {
-            sections.weeklyTasks = sections.weeklyTasks.filter((t: any) => t.task);
+            sections.weeklyTasks = sections.weeklyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
             sections.weeklyTasks.push({ done: false, task: '', priority: '', category: '', completedDate: '' });
           }
         }
@@ -6493,16 +6486,16 @@ export class PlannerFileView extends TextFileView {
         // Sync daily tasks
         if (changedDailyTasks.length > 0) {
           if (!sections.tasks) sections.tasks = [];
-          const existingNames = new Set((sections.tasks as any[]).map((t: any) => t.task).filter(Boolean));
+          const existingNames = new Set((sections.tasks as Record<string, string | number | boolean>[]).map((t: Record<string, string | number | boolean>) => t.task).filter(Boolean));
           for (const ct of changedDailyTasks) {
             if (!existingNames.has(ct.task)) {
-              sections.tasks = sections.tasks.filter((t: any) => t.task);
+              sections.tasks = sections.tasks.filter((t: Record<string, string | number | boolean>) => t.task);
               sections.tasks.push({ done: false, task: ct.task, priority: ct.priority, category: ct.category });
               updated = true;
             }
           }
           if (updated) {
-            sections.tasks = sections.tasks.filter((t: any) => t.task);
+            sections.tasks = sections.tasks.filter((t: Record<string, string | number | boolean>) => t.task);
             sections.tasks.push({ done: false, task: '', priority: '', category: '' });
           }
         }
@@ -6532,11 +6525,11 @@ export class PlannerFileView extends TextFileView {
     try {
       const schema = parseSchema(changedYaml);
       const expanded = schema.template ? expandTemplate(schema) : schema;
-      const sections = (expanded as any).sections;
+      const sections = (expanded as PlannerSchema).sections;
       if (sections?.monthlyTasks) {
-        changedMonthlyTasks = (sections.monthlyTasks as any[])
-          .filter((t: any) => t.task)
-          .map((t: any) => ({ task: t.task, priority: t.priority || '', category: t.category || '' }));
+        changedMonthlyTasks = (sections.monthlyTasks as Record<string, string | number | boolean>[])
+          .filter((t: Record<string, string | number | boolean>) => t.task)
+          .map((t: Record<string, string | number | boolean>) => ({ task: t.task, priority: t.priority || '', category: t.category || '' }));
       }
     } catch { return; }
     if (changedMonthlyTasks.length === 0) return;
@@ -6562,20 +6555,20 @@ export class PlannerFileView extends TextFileView {
         const yamlStr = match[1].trim();
         const schema = parseSchema(yamlStr);
         if (schema.template !== 'daily-planner') continue;
-        if (!schema.sections) (schema as any).sections = {};
-        const sections = (schema as any).sections;
+        if (!schema.sections) (schema as PlannerSchema).sections = {};
+        const sections = (schema as PlannerSchema).sections;
         let updated = false;
         if (!sections.monthlyTasks) sections.monthlyTasks = [];
-        const existing = new Set((sections.monthlyTasks as any[]).map((t: any) => t.task).filter(Boolean));
+        const existing = new Set((sections.monthlyTasks as Record<string, string | number | boolean>[]).map((t: Record<string, string | number | boolean>) => t.task).filter(Boolean));
         for (const ct of changedMonthlyTasks) {
           if (!existing.has(ct.task)) {
-            sections.monthlyTasks = sections.monthlyTasks.filter((t: any) => t.task);
+            sections.monthlyTasks = sections.monthlyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
             sections.monthlyTasks.push({ done: false, task: ct.task, priority: ct.priority, category: ct.category, completedDate: '' });
             updated = true;
           }
         }
         if (updated) {
-          sections.monthlyTasks = sections.monthlyTasks.filter((t: any) => t.task);
+          sections.monthlyTasks = sections.monthlyTasks.filter((t: Record<string, string | number | boolean>) => t.task);
           sections.monthlyTasks.push({ done: false, task: '', priority: '', category: '', completedDate: '' });
           const newYaml = serializeSchema(schema);
           const searchStr = '```planner\n' + match[1] + '```';

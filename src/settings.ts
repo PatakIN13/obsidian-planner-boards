@@ -39,7 +39,7 @@ export class PlannerBoardsSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: t('settings.title') });
+    new Setting(containerEl).setName(t('settings.title')).setHeading();
 
     new Setting(containerEl)
       .setName(t('settings.theme'))
@@ -127,7 +127,7 @@ export class PlannerBoardsSettingTab extends PluginSettingTab {
         }));
 
     // --- Calendar Integration ---
-    containerEl.createEl('h2', { text: t('settings.calendarTitle') });
+    new Setting(containerEl).setName(t('settings.calendarTitle')).setHeading();
     containerEl.createEl('p', {
       text: t('settings.calendarDesc'),
       cls: 'setting-item-description',
@@ -189,28 +189,24 @@ export class PlannerBoardsSettingTab extends PluginSettingTab {
 
   private renderCalendarSource(containerEl: HTMLElement, source: CalendarSource) {
     const wrapper = containerEl.createDiv({ cls: 'planner-calendar-source' });
-    wrapper.style.cssText = 'border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px; margin: 8px 0;';
 
     // Header with color dot + name + toggle
-    const header = wrapper.createDiv();
-    header.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 8px;';
+    const header = wrapper.createDiv({ cls: 'planner-calendar-source-header' });
 
-    const colorDot = header.createEl('span');
-    colorDot.style.cssText = `width: 14px; height: 14px; border-radius: 50%; display: inline-block; background: ${source.color}; flex-shrink: 0; cursor: pointer;`;
+    const colorDot = header.createEl('span', { cls: 'planner-color-dot' });
+    colorDot.style.setProperty('--dot-color', source.color);
     colorDot.title = t('ui.clickForColor');
     colorDot.addEventListener('click', () => {
       this.showColorPicker(source, colorDot);
     });
 
-    const nameEl = header.createEl('strong', { text: source.name });
-    nameEl.style.flex = '1';
+    const nameEl = header.createEl('strong', { text: source.name, cls: 'planner-calendar-source-name' });
 
     // Cache age
     const sync = this.plugin.calendarSync;
     if (sync) {
       const age = sync.getCacheAge(source.id);
-      const ageEl = header.createEl('span', { text: age });
-      ageEl.style.cssText = 'font-size: 0.8em; color: var(--text-muted);';
+      header.createEl('span', { text: age, cls: 'planner-cache-age' });
     }
 
     // Name input
@@ -230,9 +226,7 @@ export class PlannerBoardsSettingTab extends PluginSettingTab {
       .setName(t('settings.calUrl'))
       .setDesc(t('settings.calUrlDesc'))
       .addText(text => {
-        text.inputEl.style.width = '100%';
-        text.inputEl.style.fontFamily = 'monospace';
-        text.inputEl.style.fontSize = '0.85em';
+        text.inputEl.addClass('planner-ics-url-input');
         text
           .setValue(source.url)
           .setPlaceholder(t('settings.calUrlPlaceholder'))
@@ -284,42 +278,31 @@ export class PlannerBoardsSettingTab extends PluginSettingTab {
 
     const popup = document.createElement('div');
     popup.className = 'planner-color-picker-popup';
-    popup.style.cssText = `
-      position: fixed; z-index: 1000; background: var(--background-primary);
-      border: 1px solid var(--background-modifier-border); border-radius: 8px;
-      padding: 8px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-    `;
 
     const rect = anchor.getBoundingClientRect();
-    popup.style.top = `${rect.bottom + 4}px`;
-    popup.style.left = `${rect.left}px`;
+    popup.style.setProperty('--popup-top', `${rect.bottom + 4}px`);
+    popup.style.setProperty('--popup-left', `${rect.left}px`);
 
     for (const color of CALENDAR_COLORS) {
-      const swatch = popup.createEl('div');
-      swatch.style.cssText = `
-        width: 28px; height: 28px; border-radius: 50%; background: ${color};
-        cursor: pointer; border: 2px solid ${color === source.color ? 'var(--text-normal)' : 'transparent'};
-        transition: border-color 0.15s;
-      `;
-      swatch.addEventListener('click', async () => {
+      const swatch = popup.createEl('div', { cls: 'planner-color-swatch' });
+      swatch.style.setProperty('--swatch-color', color);
+      if (color === source.color) swatch.addClass('is-selected');
+      swatch.addEventListener('click', () => {
         source.color = color;
-        anchor.style.background = color;
-        await this.plugin.saveSettings();
+        anchor.style.setProperty('--dot-color', color);
+        void this.plugin.saveSettings();
         popup.remove();
       });
     }
 
     // Custom color input
-    const customRow = popup.createDiv();
-    customRow.style.cssText = 'grid-column: 1 / -1; margin-top: 4px;';
-    const input = customRow.createEl('input', { type: 'color' });
+    const customRow = popup.createDiv({ cls: 'planner-custom-color-row' });
+    const input = customRow.createEl('input', { type: 'color', cls: 'planner-custom-color-input' });
     input.value = source.color;
-    input.style.cssText = 'width: 100%; height: 28px; border: none; padding: 0; cursor: pointer;';
-    input.addEventListener('change', async () => {
+    input.addEventListener('change', () => {
       source.color = input.value;
-      anchor.style.background = input.value;
-      await this.plugin.saveSettings();
+      anchor.style.setProperty('--dot-color', input.value);
+      void this.plugin.saveSettings();
       popup.remove();
     });
 

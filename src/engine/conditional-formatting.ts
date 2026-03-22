@@ -5,7 +5,7 @@ import { ColumnDef, PlannerSchema } from '../types';
  */
 export function applyConditionalFormatting(
   td: HTMLElement,
-  row: Record<string, any>,
+  row: Record<string, string | number | boolean>,
   col: ColumnDef,
   schema: PlannerSchema
 ): void {
@@ -15,8 +15,9 @@ export function applyConditionalFormatting(
   if (col.color_scale && typeof value === 'number') {
     const color = getScaleColor(value, col.color_scale);
     if (color) {
-      td.style.backgroundColor = color + '20'; // 12% opacity
-      td.style.borderLeft = `3px solid ${color}`;
+      td.style.setProperty('--cond-bg', color + '20'); // 12% opacity
+      td.style.setProperty('--cond-border-color', color);
+      td.classList.add('planner-cond-scaled');
     }
   }
 
@@ -29,12 +30,12 @@ export function applyConditionalFormatting(
   }
 }
 
-function evaluateCondition(value: any, condition: string): boolean {
+function evaluateCondition(value: string | number | boolean, condition: string): boolean {
   const match = condition.match(/^(>=?|<=?|==|!=)\s*(.+)$/);
   if (!match) return false;
 
   const [, op, rawTarget] = match;
-  let target: any = rawTarget.trim();
+  let target: string | number | boolean = rawTarget.trim();
 
   // Parse target
   if (target === 'true') target = true;

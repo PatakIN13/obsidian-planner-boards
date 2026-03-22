@@ -153,7 +153,7 @@ export class CalendarSyncEngine {
 
   private loadFromCache() {
     const all: CalendarEvent[] = [];
-    for (const [sourceId, cached] of Object.entries(this.settings.cache.sources)) {
+    for (const [, cached] of Object.entries(this.settings.cache.sources)) {
       if (cached?.events) {
         all.push(...cached.events.map(deserializeEvent));
       }

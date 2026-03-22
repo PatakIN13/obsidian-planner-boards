@@ -1,6 +1,4 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
-import * as yaml from 'js-yaml';
-
 const DEFAULT_TEMPLATES_FOLDER = '_planner-templates';
 
 /**
@@ -32,7 +30,7 @@ export async function saveCustomTemplate(
 /**
  * Load all custom template names from the vault folder.
  */
-export async function listCustomTemplates(
+export function listCustomTemplates(
   app: App,
   folder?: string
 ): Promise<string[]> {

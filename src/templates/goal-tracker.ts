@@ -1,18 +1,17 @@
 import { PlannerSchema, ColumnDef } from '../types';
 
 export function expandGoalTracker(schema: PlannerSchema): PlannerSchema {
-  const input = schema as any;
-  const locale = input.locale || 'ru';
+  const locale = (schema.locale as string) || 'ru';
   const isRu = locale === 'ru';
 
-  const statuses = input.statuses || [
+  const statuses = (schema['statuses'] as string[]) || [
     isRu ? '⬜ Не начато' : '⬜ Not started',
     isRu ? '🔵 В процессе' : '🔵 In progress',
     isRu ? '✅ Достигнуто' : '✅ Achieved',
     isRu ? '❌ Отменено' : '❌ Cancelled',
   ];
 
-  const quarters = input.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
+  const quarters = (schema['quarters'] as string[]) || ['Q1', 'Q2', 'Q3', 'Q4'];
 
   const columns: ColumnDef[] = [
     { id: 'objective', label: isRu ? 'Цель (Objective)' : 'Objective', type: 'text', width: 220, frozen: true },
@@ -27,26 +26,26 @@ export function expandGoalTracker(schema: PlannerSchema): PlannerSchema {
     },
   ];
 
-  const data: Record<string, any>[] = (input.goals || input.data || []).map((g: any) => ({
-    objective: g.objective || '',
-    key_result: g.key_result || '',
-    quarter: g.quarter || quarters[0],
-    status: g.status || statuses[0],
-    target: g.target ?? 100,
-    current: g.current ?? 0,
+  const data: Record<string, string | number | boolean>[] = ((schema['goals'] || schema.data || []) as Record<string, string | number | boolean>[]).map((g: Record<string, string | number | boolean>) => ({
+    objective: g['objective'] || '',
+    key_result: g['key_result'] || '',
+    quarter: g['quarter'] || quarters[0],
+    status: g['status'] || statuses[0],
+    target: g['target'] ?? 100,
+    current: g['current'] ?? 0,
     progress: 0,
   }));
 
-  const title = input.title || `🎯 ${isRu ? 'OKR' : 'OKR'}${input.year ? ' ' + input.year : ''}`;
+  const title = (schema.title as string) || `🎯 ${isRu ? 'OKR' : 'OKR'}${schema['year'] ? ' ' + schema['year'] : ''}`;
 
   return {
     type: 'grid',
     title,
-    theme: input.theme || 'soft',
+    theme: (schema.theme as string) || 'soft',
     locale,
     template: 'goal-tracker',
-    year: input.year,
-    goals: input.goals,
+    year: schema['year'],
+    goals: schema['goals'],
     columns,
     summary: [
       { column: 'progress', formula: 'AVG(progress)', label: isRu ? 'Общий прогресс' : 'Overall' },

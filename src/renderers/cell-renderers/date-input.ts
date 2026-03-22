@@ -22,14 +22,14 @@ export function renderDateInput(
     input.type = 'date';
     input.className = 'planner-cell-input';
     input.value = value || '';
-    display.style.display = 'none';
+    display.classList.add('is-hidden');
     cell.appendChild(input);
     input.focus();
 
     const commit = () => {
       const newVal = input.value;
       display.textContent = newVal;
-      display.style.display = '';
+      display.classList.remove('is-hidden');
       input.remove();
       if (newVal !== value) {
         onChange(newVal);
@@ -40,7 +40,7 @@ export function renderDateInput(
     input.addEventListener('change', commit);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); commit(); }
-      if (e.key === 'Escape') { display.style.display = ''; input.remove(); }
+      if (e.key === 'Escape') { display.classList.remove('is-hidden'); input.remove(); }
     });
   };
 

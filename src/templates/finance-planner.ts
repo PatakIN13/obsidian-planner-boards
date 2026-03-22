@@ -1,18 +1,10 @@
 import { PlannerSchema, ColumnDef } from '../types';
 
-interface FinanceSection {
-  icon: string;
-  titleRu: string;
-  titleEn: string;
-  items: { category: string; planned: number; actual: number }[];
-}
-
 export function expandFinancePlanner(schema: PlannerSchema): PlannerSchema {
-  const input = schema as any;
-  const locale = input.locale || 'ru';
-  const currency = input.currency || '₽';
-  const month = input.month || getCurrentMonth();
-  const sections = input.sections || {};
+  const locale = (schema.locale as string) || 'ru';
+  const currency = (schema['currency'] as string) || '₽';
+  const month = (schema['month'] as string) || getCurrentMonth();
+  const sections = (schema.sections as Record<string, Record<string, string | number | boolean>[]>) || {};
   const isRu = locale === 'ru';
 
   // Define section configs
@@ -24,7 +16,7 @@ export function expandFinancePlanner(schema: PlannerSchema): PlannerSchema {
     { key: 'savings', icon: '🏦', titleRu: 'Накопления', titleEn: 'Savings', dataKey: 'savings', catField: 'goal' },
   ];
 
-  const subtables: { title: string; columns: ColumnDef[]; data: Record<string, any>[] }[] = [];
+  const subtables: { title: string; columns: ColumnDef[]; data: Record<string, string | number | boolean>[] }[] = [];
 
   // Build a subtable for each section
   for (const def of sectionDefs) {
@@ -39,10 +31,10 @@ export function expandFinancePlanner(schema: PlannerSchema): PlannerSchema {
     ];
 
     const sectionData = sections[def.dataKey] || [];
-    const data: Record<string, any>[] = sectionData.map((item: any) => ({
-      [`${def.key}_cat`]: item[def.catField] || item.category || '',
-      [`${def.key}_planned`]: item.planned || item.payment || item.target || 0,
-      [`${def.key}_actual`]: item.actual || item.paid || item.current || 0,
+    const data: Record<string, string | number | boolean>[] = sectionData.map((item: Record<string, string | number | boolean>) => ({
+      [`${def.key}_cat`]: item[def.catField] || item['category'] || '',
+      [`${def.key}_planned`]: item['planned'] || item['payment'] || item['target'] || 0,
+      [`${def.key}_actual`]: item['actual'] || item['paid'] || item['current'] || 0,
     }));
 
     if (data.length === 0) {
@@ -72,13 +64,13 @@ export function expandFinancePlanner(schema: PlannerSchema): PlannerSchema {
   ];
 
   // Calculate summary data from sections
-  const summaryData: Record<string, any>[] = [];
+  const summaryData: Record<string, string | number | boolean>[] = [];
   for (const def of sectionDefs) {
     const sectionItems = sections[def.dataKey] || [];
     let totalPlanned = 0, totalActual = 0;
     for (const item of sectionItems) {
-      totalPlanned += (item.planned || item.payment || item.target || 0);
-      totalActual += (item.actual || item.paid || item.current || 0);
+      totalPlanned += (Number(item['planned'] || item['payment'] || item['target'] || 0));
+      totalActual += (Number(item['actual'] || item['paid'] || item['current'] || 0));
     }
     summaryData.push({
       sum_cat: `${def.icon} ${isRu ? def.titleRu : def.titleEn}`,
@@ -101,18 +93,18 @@ export function expandFinancePlanner(schema: PlannerSchema): PlannerSchema {
   };
   const [yearN, monthN] = month.split('-').map(Number);
   const names = monthNames[locale] || monthNames['ru'];
-  const title = input.title || `💰 ${isRu ? 'Финансы' : 'Finance'} — ${names[monthN - 1]} ${yearN}`;
+  const title = (schema.title as string) || `💰 ${isRu ? 'Финансы' : 'Finance'} — ${names[monthN - 1]} ${yearN}`;
 
   // Use summary as main grid columns/data
   return {
     type: 'grid',
     title,
-    theme: input.theme || 'soft',
+    theme: (schema.theme as string) || 'soft',
     locale,
     template: 'finance-planner',
     month,
     currency,
-    sections: input.sections,
+    sections: schema.sections,
     columns: summaryColumns,
     summary: [
       { column: 'sum_planned', formula: 'SUM(sum_planned)', label: isRu ? 'Итого' : 'Total' },

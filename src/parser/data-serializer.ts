@@ -6,7 +6,7 @@ import { PlannerSchema } from '../types';
  * Preserves field order for readability.
  */
 export function serializeSchema(schema: PlannerSchema): string {
-  const output: Record<string, any> = {};
+  const output: Record<string, unknown> = {};
 
   if (schema.template) {
     output.template = schema.template;
@@ -27,7 +27,7 @@ export function serializeSchema(schema: PlannerSchema): string {
 
   if (schema.columns && schema.columns.length > 0 && !schema.template) {
     output.columns = schema.columns.map(col => {
-      const c: Record<string, any> = { id: col.id, label: col.label, type: col.type };
+      const c: Record<string, unknown> = { id: col.id, label: col.label, type: col.type };
       if (col.width) c.width = col.width;
       if (col.frozen) c.frozen = col.frozen;
       if (col.group) c.group = col.group;

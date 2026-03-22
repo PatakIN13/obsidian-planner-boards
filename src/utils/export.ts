@@ -66,7 +66,7 @@ function csvEscape(val: string): string {
   return val;
 }
 
-function formatValue(val: any): string {
+function formatValue(val: unknown): string {
   if (val === null || val === undefined) return '';
   if (typeof val === 'boolean') return val ? 'true' : 'false';
   return String(val);

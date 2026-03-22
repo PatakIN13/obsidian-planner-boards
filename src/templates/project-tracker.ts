@@ -1,22 +1,21 @@
 import { PlannerSchema, ColumnDef } from '../types';
 
 export function expandProjectTracker(schema: PlannerSchema): PlannerSchema {
-  const input = schema as any;
-  const locale = input.locale || 'ru';
+  const locale = (schema.locale as string) || 'ru';
   const isRu = locale === 'ru';
 
-  const statuses = input.statuses || [
+  const statuses = (schema['statuses'] as string[]) || [
     isRu ? '⬜ Ожидает' : '⬜ Pending',
     isRu ? '🔵 В работе' : '🔵 In Progress',
     isRu ? '🟡 Ревью' : '🟡 Review',
     isRu ? '✅ Готово' : '✅ Done',
   ];
-  const priorities = input.priorities || [
+  const priorities = (schema['priorities'] as string[]) || [
     isRu ? '🔴 Высокий' : '🔴 High',
     isRu ? '🟠 Средний' : '🟠 Medium',
     isRu ? '🟢 Низкий' : '🟢 Low',
   ];
-  const assignees: string[] = input.assignees || [];
+  const assignees: string[] = (schema['assignees'] as string[]) || [];
 
   const columns: ColumnDef[] = [
     { id: 'task', label: isRu ? 'Задача' : 'Task', type: 'text', width: 220, frozen: true },
@@ -29,26 +28,26 @@ export function expandProjectTracker(schema: PlannerSchema): PlannerSchema {
     },
   ];
 
-  const data: Record<string, any>[] = (input.tasks || input.data || []).map((t: any) => ({
-    task: t.task || t.text || '',
-    assignee: t.assignee || '',
-    status: t.status || statuses[0],
-    priority: t.priority || priorities[1],
-    deadline: t.deadline || '',
-    progress: t.progress ?? 0,
+  const data: Record<string, string | number | boolean>[] = ((schema['tasks'] || schema.data || []) as Record<string, string | number | boolean>[]).map((t: Record<string, string | number | boolean>) => ({
+    task: t['task'] || t['text'] || '',
+    assignee: t['assignee'] || '',
+    status: t['status'] || statuses[0],
+    priority: t['priority'] || priorities[1],
+    deadline: t['deadline'] || '',
+    progress: t['progress'] ?? 0,
   }));
 
-  const title = input.title || `🚀 ${isRu ? 'Проект' : 'Project'}${input.project ? ': ' + input.project : ''}`;
+  const title = (schema.title as string) || `🚀 ${isRu ? 'Проект' : 'Project'}${schema['project'] ? ': ' + schema['project'] : ''}`;
 
   return {
     type: 'grid',
     title,
-    theme: input.theme || 'soft',
+    theme: (schema.theme as string) || 'soft',
     locale,
     template: 'project-tracker',
-    project: input.project,
+    project: schema['project'],
     assignees,
-    tasks: input.tasks,
+    tasks: schema['tasks'],
     columns,
     summary: [
       { column: 'progress', formula: 'AVG(progress)', label: isRu ? 'Общий прогресс' : 'Overall' },

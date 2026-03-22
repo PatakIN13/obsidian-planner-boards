@@ -17,10 +17,10 @@ export function renderProgressBar(
 
   const fill = document.createElement('div');
   fill.className = 'planner-progress-fill';
-  fill.style.width = `${percent}%`;
+  fill.style.setProperty('--bar-width', `${percent}%`);
 
   if (col.color_scale) {
-    fill.style.backgroundColor = getScaleColor(numValue, col.color_scale);
+    fill.style.setProperty('--scale-color', getScaleColor(numValue, col.color_scale));
   }
 
   const label = document.createElement('span');

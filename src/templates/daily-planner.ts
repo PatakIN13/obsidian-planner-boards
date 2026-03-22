@@ -1,26 +1,25 @@
 import { PlannerSchema, ColumnDef } from '../types';
 
 export function expandDailyPlanner(schema: PlannerSchema): PlannerSchema {
-  const input = schema as any;
-  const locale = input.locale || 'ru';
+  const locale = (schema.locale as string) || 'ru';
   const isRu = locale === 'ru';
-  let day = input.day;
+  let day = schema['day'] as string | Date | undefined;
   if (day instanceof Date) {
     day = day.toISOString().substring(0, 10);
   } else if (day && typeof day !== 'string') {
     day = String(day);
   }
-  const month = input.month || (day ? day.substring(0, 7) : getCurrentMonth());
-  const categories = input.categories || (isRu
+  const month = (schema['month'] as string) || (day ? day.substring(0, 7) : getCurrentMonth());
+  const categories = (schema['categories'] as string[]) || (isRu
     ? ['Работа', 'Личное', 'Здоровье', 'Учёба', 'Другое']
     : ['Work', 'Personal', 'Health', 'Study', 'Other']);
-  const weeklyPriorities = input.weeklyPriorities || (isRu
+  const weeklyPriorities = (schema['weeklyPriorities'] as string[]) || (isRu
     ? ['🔴 Срочно / Важно', '🟡 Не срочно / Важно', '🟠 Срочно / Не важно', '🟢 Не срочно / Не важно']
     : ['🔴 Urgent / Important', '🟡 Not Urgent / Important', '🟠 Urgent / Not Important', '🟢 Not Urgent / Not Important']);
-  const dailyPriorities = input.dailyPriorities || (isRu
+  const dailyPriorities = (schema['dailyPriorities'] as string[]) || (isRu
     ? ['🔴 Важно', '🟡 Средне', '🟢 Не важно']
     : ['🔴 Important', '🟡 Medium', '🟢 Not Important']);
-  const timeInterval = input.timeInterval || 60; // 15, 30, 45, 60
+  const timeInterval = (schema['timeInterval'] as number) || 60; // 15, 30, 45, 60
 
   const tasksTitle = isRu ? '✅ Ежедневные' : '✅ Daily';
 
@@ -45,7 +44,7 @@ export function expandDailyPlanner(schema: PlannerSchema): PlannerSchema {
         { habit: 'Meditation', description: '10 min', done: false },
         { habit: '', description: '', done: false },
       ];
-  const habitData = input.sections?.habits || defaultHabits;
+  const habitData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.habits || defaultHabits;
 
   // --- WEEKLY TASKS TABLE ---
   const weeklyTaskColumns: ColumnDef[] = [
@@ -56,7 +55,7 @@ export function expandDailyPlanner(schema: PlannerSchema): PlannerSchema {
     { id: 'goal', label: isRu ? '🎯 Цель' : '🎯 Goal', type: 'text', width: 160 },
     { id: 'completedDate', label: isRu ? 'Завершено' : 'Completed', type: 'text', width: 100 },
   ];
-  const weeklyTaskData = input.sections?.weeklyTasks || [
+  const weeklyTaskData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.weeklyTasks || [
     { done: false, task: '', priority: '', category: '', goal: '', completedDate: '' },
   ];
 
@@ -69,7 +68,7 @@ export function expandDailyPlanner(schema: PlannerSchema): PlannerSchema {
     { id: 'goal', label: isRu ? '🎯 Цель' : '🎯 Goal', type: 'text', width: 160 },
     { id: 'completedDate', label: isRu ? 'Завершено' : 'Completed', type: 'text', width: 100 },
   ];
-  const monthlyTaskData = input.sections?.monthlyTasks || [
+  const monthlyTaskData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.monthlyTasks || [
     { done: false, task: '', priority: '', category: '', goal: '', completedDate: '' },
   ];
 
@@ -80,26 +79,26 @@ export function expandDailyPlanner(schema: PlannerSchema): PlannerSchema {
     { id: 'priority', label: isRu ? 'Приоритет' : 'Priority', type: 'select', options: dailyPriorities },
     { id: 'category', label: isRu ? 'Категория' : 'Category', type: 'select', options: categories },
   ];
-  const taskData = input.sections?.tasks || [
+  const taskData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.tasks || [
     { done: false, task: '', priority: '', category: '' },
   ];
 
   // --- SCHEDULE TABLE (multi-select references tasks) ---
   const scheduleColumns: ColumnDef[] = [
     { id: 'time', label: isRu ? 'Время' : 'Time', type: 'text', width: 70, frozen: true },
-    { id: 'task', label: isRu ? 'Задача' : 'Task', type: 'combo' as any, width: 280, refTables: [tasksTitle, isRu ? '🎯 Задачи на неделю' : '🎯 Weekly Tasks', isRu ? '📆 Задачи на месяц' : '📆 Monthly Tasks'], refColumn: 'task', multiSelect: true },
+    { id: 'task', label: isRu ? 'Задача' : 'Task', type: 'combo', width: 280, refTables: [tasksTitle, isRu ? '🎯 Задачи на неделю' : '🎯 Weekly Tasks', isRu ? '📆 Задачи на месяц' : '📆 Monthly Tasks'], refColumn: 'task', multiSelect: true },
   ];
   const hours = generateTimeSlots(timeInterval);
-  const scheduleData = input.sections?.schedule || hours.map((h: string) => ({
+  const scheduleData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.schedule || hours.map((h: string) => ({
     time: h, task: '', _mins: '',
   }));
 
   // --- NOTES TABLE (combo references tasks) ---
   const noteColumns: ColumnDef[] = [
-    { id: 'task', label: isRu ? 'Задача' : 'Task', type: 'combo' as any, width: 200, refTables: [tasksTitle, isRu ? '🎯 Задачи на неделю' : '🎯 Weekly Tasks', isRu ? '📆 Задачи на месяц' : '📆 Monthly Tasks'], refColumn: 'task' },
+    { id: 'task', label: isRu ? 'Задача' : 'Task', type: 'combo', width: 200, refTables: [tasksTitle, isRu ? '🎯 Задачи на неделю' : '🎯 Weekly Tasks', isRu ? '📆 Задачи на месяц' : '📆 Monthly Tasks'], refColumn: 'task' },
     { id: 'note', label: isRu ? 'Заметка' : 'Note', type: 'text', width: 400 },
   ];
-  const noteData = input.sections?.notes || [{ task: '', note: '' }];
+  const noteData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.notes || [{ task: '', note: '' }];
 
   // --- MOOD TABLE ---
   const moodColumns: ColumnDef[] = [
@@ -119,7 +118,7 @@ export function expandDailyPlanner(schema: PlannerSchema): PlannerSchema {
         { metric: '🧘 Calm', value: '' },
         { metric: '', value: '' },
       ];
-  const moodData = input.sections?.mood || defaultMood;
+  const moodData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.mood || defaultMood;
 
   // --- EXERCISE TABLE ---
   const exerciseColumns: ColumnDef[] = [
@@ -134,15 +133,15 @@ export function expandDailyPlanner(schema: PlannerSchema): PlannerSchema {
     : [
         { exercise: '', value: '', unit: '' },
       ];
-  const exerciseData = input.sections?.exercise || defaultExercise;
+  const exerciseData = (schema.sections as Record<string, Record<string, string | number | boolean>[]> | undefined)?.exercise || defaultExercise;
 
   const dateLabel = day || month;
-  const title = input.title || `📅 ${isRu ? 'Ежедневник' : 'Daily Planner'} — ${dateLabel}`;
+  const title = (schema.title as string) || `📅 ${isRu ? 'Ежедневник' : 'Daily Planner'} — ${dateLabel}`;
 
   return {
     type: 'grid',
     title,
-    theme: input.theme || 'soft',
+    theme: (schema.theme as string) || 'soft',
     locale,
     template: 'daily-planner',
     ...(day ? { day } : { month }),

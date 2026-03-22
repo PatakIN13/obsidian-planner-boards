@@ -1,6 +1,6 @@
 import { ColumnDef } from '../types';
 
-export function validateCellValue(value: any, column: ColumnDef): { valid: boolean; coerced: any } {
+export function validateCellValue(value: unknown, column: ColumnDef): { valid: boolean; coerced: string | number | boolean } {
   switch (column.type) {
     case 'checkbox':
       return { valid: true, coerced: Boolean(value) };
@@ -17,7 +17,7 @@ export function validateCellValue(value: any, column: ColumnDef): { valid: boole
 
     case 'select':
       if (column.options && !column.options.includes(String(value))) {
-        return { valid: false, coerced: value };
+        return { valid: false, coerced: String(value) };
       }
       return { valid: true, coerced: String(value) };
 
@@ -29,9 +29,13 @@ export function validateCellValue(value: any, column: ColumnDef): { valid: boole
 
     case 'formula':
       // Formula cells are read-only
-      return { valid: false, coerced: value };
+      if (typeof value === 'number') return { valid: false, coerced: value };
+      if (typeof value === 'boolean') return { valid: false, coerced: value };
+      return { valid: false, coerced: String(value ?? '') };
 
     default:
-      return { valid: true, coerced: value };
+      if (typeof value === 'number') return { valid: true, coerced: value };
+      if (typeof value === 'boolean') return { valid: true, coerced: value };
+      return { valid: true, coerced: String(value ?? '') };
   }
 }

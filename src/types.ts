@@ -34,6 +34,24 @@ export interface SummaryDef {
   label?: string;
 }
 
+export interface SubtableControl {
+  type: 'select';
+  field: string;
+  value: string | number;
+  options: { label: string; value: string | number }[];
+}
+
+export interface SubtableEntry {
+  title: string;
+  columns: ColumnDef[];
+  data: Record<string, string | number | boolean>[];
+  group?: string;
+  groupCol?: string;
+  noAddRow?: boolean;
+  controls?: SubtableControl[];
+  onAddItem?: () => void;
+}
+
 export interface PlannerSchema {
   type?: string;
   title?: string;
@@ -42,18 +60,20 @@ export interface PlannerSchema {
   template?: string;
   columns: ColumnDef[];
   summary?: SummaryDef[];
-  data: Record<string, any>[];
+  data: Record<string, string | number | boolean>[];
+  _subtables?: SubtableEntry[];
+  sections?: Record<string, Array<Record<string, string | number | boolean>>>;
   // Template-specific fields (passed through)
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface CellValue {
-  raw: any;
-  computed?: any;
+  raw: string | number | boolean;
+  computed?: string | number | boolean;
 }
 
 export interface FormulaContext {
-  row: Record<string, any>;
-  allRows: Record<string, any>[];
+  row: Record<string, string | number | boolean>;
+  allRows: Record<string, string | number | boolean>[];
   columns: ColumnDef[];
 }

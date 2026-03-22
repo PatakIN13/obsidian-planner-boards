@@ -83,7 +83,7 @@ export class PlannerAPI {
 export interface PlannerDataResult {
   title: string;
   columns: { id: string; label: string; type: string }[];
-  rows: any[][];
-  data: Record<string, any>[];
-  summary: any[];
+  rows: (string | number | boolean)[][];
+  data: Record<string, string | number | boolean>[];
+  summary: { column: string; formula: string; label?: string }[];
 }

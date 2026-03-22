@@ -14,11 +14,10 @@ import { PlannerSchema, ColumnDef } from '../types';
  *       status: "✅ Прочитано"
  */
 export function expandReadingLog(schema: PlannerSchema): PlannerSchema {
-  const input = schema as any;
-  const locale = input.locale || 'ru';
+  const locale = (schema.locale as string) || 'ru';
   const isRu = locale === 'ru';
 
-  const statuses = input.statuses || [
+  const statuses = (schema['statuses'] as string[]) || [
     isRu ? '📖 Читаю' : '📖 Reading',
     isRu ? '⏸️ Пауза' : '⏸️ Paused',
     isRu ? '✅ Прочитано' : '✅ Finished',
@@ -45,23 +44,23 @@ export function expandReadingLog(schema: PlannerSchema): PlannerSchema {
     { id: 'notes', label: isRu ? 'Заметки' : 'Notes', type: 'text', width: 200 },
   ];
 
-  const data = (input.books || []).map((b: any) => ({
-    title: b.title || '',
-    author: b.author || '',
-    status: b.status || statuses[3],
-    pages: b.pages ?? 0,
-    read: b.read ?? 0,
-    rating: b.rating ?? '',
-    notes: b.notes || '',
+  const data = ((schema['books'] || []) as Record<string, string | number | boolean>[]).map((b: Record<string, string | number | boolean>) => ({
+    title: b['title'] || '',
+    author: b['author'] || '',
+    status: b['status'] || statuses[3],
+    pages: b['pages'] ?? 0,
+    read: b['read'] ?? 0,
+    rating: b['rating'] ?? '',
+    notes: b['notes'] || '',
   }));
 
   return {
     type: 'grid',
-    title: input.title || `📚 ${isRu ? 'Журнал чтения' : 'Reading Log'}`,
-    theme: input.theme || 'soft',
+    title: (schema.title as string) || `📚 ${isRu ? 'Журнал чтения' : 'Reading Log'}`,
+    theme: (schema.theme as string) || 'soft',
     locale,
     template: 'reading-log',
-    books: input.books,
+    books: schema['books'],
     columns,
     summary: [
       { column: 'rating', formula: 'AVG(rating)', label: isRu ? 'Средняя оценка' : 'Avg Rating' },

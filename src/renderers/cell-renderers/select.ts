@@ -29,14 +29,14 @@ export function renderSelect(
       select.appendChild(option);
     }
 
-    display.style.display = 'none';
+    display.classList.add('is-hidden');
     cell.appendChild(select);
     select.focus();
 
     const commit = () => {
       const newVal = select.value;
       display.textContent = newVal;
-      display.style.display = '';
+      display.classList.remove('is-hidden');
       select.remove();
       if (newVal !== value) {
         onChange(newVal);
@@ -46,7 +46,7 @@ export function renderSelect(
     select.addEventListener('change', commit);
     select.addEventListener('blur', commit);
     select.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { display.style.display = ''; select.remove(); }
+      if (e.key === 'Escape') { display.classList.remove('is-hidden'); select.remove(); }
     });
   };
 
