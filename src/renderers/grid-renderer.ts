@@ -113,14 +113,14 @@ export function renderGrid(schema: PlannerSchema, callbacks: GridCallbacks): HTM
         if (colId === 'task' && '_mins' in subSchema.data[rowIndex]) {
           const row = subSchema.data[rowIndex];
           const tasks = (String(newValue || '')).split('|').filter(Boolean);
-          const oldMins = (row._mins || '').split('|').filter(Boolean);
-          const timeStr = row.time || '06:00';
+          const oldMins = String(row._mins || '').split('|').filter(Boolean);
+          const timeStr = String(row.time || '06:00');
           const [hh, mm] = timeStr.split(':').map(Number);
           const slotMin = hh * 60 + (mm || 0);
           // Preserve existing _mins for known tasks, assign slot minute for new ones
           const newMins: string[] = [];
           for (let i = 0; i < tasks.length; i++) {
-            newMins.push(oldMins[i] || String(slotMin));
+            newMins.push(String(oldMins[i] || slotMin));
           }
           row._mins = newMins.join('|');
         }

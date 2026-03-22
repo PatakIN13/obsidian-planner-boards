@@ -1,4 +1,4 @@
-import { PlannerSchema, ColumnDef, FormulaContext } from '../types';
+import { PlannerSchema, FormulaContext } from '../types';
 import { evaluateFormula } from '../engine/formulas';
 
 /**
@@ -69,5 +69,7 @@ function csvEscape(val: string): string {
 function formatValue(val: unknown): string {
   if (val === null || val === undefined) return '';
   if (typeof val === 'boolean') return val ? 'true' : 'false';
-  return String(val);
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  return String(val as string);
 }

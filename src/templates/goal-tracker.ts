@@ -36,7 +36,7 @@ export function expandGoalTracker(schema: PlannerSchema): PlannerSchema {
     progress: 0,
   }));
 
-  const title = (schema.title as string) || `🎯 ${isRu ? 'OKR' : 'OKR'}${schema['year'] ? ' ' + schema['year'] : ''}`;
+  const title = (schema.title as string) || `🎯 ${isRu ? 'OKR' : 'OKR'}${schema['year'] ? ' ' + String(schema['year'] as string | number) : ''}`;
 
   return {
     type: 'grid',

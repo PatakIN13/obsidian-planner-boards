@@ -103,7 +103,7 @@ export default class PlannerBoardsPlugin extends Plugin {
     this.registerExtensions(['planner'], VIEW_TYPE_PLANNER_FILE);
 
     // Ribbon icon in left sidebar
-    this.addRibbonIcon('layout-grid', 'Planner Boards', (evt) => {
+    this.addRibbonIcon('layout-grid', 'Planner boards', (evt) => {
       const menu = new Menu();
       menu.addItem(item => item.setTitle(t('menu.planners')).setIcon('layout-grid')
         .onClick(() => { void this.activateView(); }));
@@ -262,7 +262,8 @@ export default class PlannerBoardsPlugin extends Plugin {
     const editor = view.editor;
     const fileContent = editor.getValue();
 
-    const sectionInfo = ctx.getSectionInfo(ctx.el);
+    const el = ctx.el as HTMLElement;
+    const sectionInfo = ctx.getSectionInfo(el);
     if (!sectionInfo) return;
 
     const { lineStart, lineEnd } = sectionInfo;
@@ -278,7 +279,8 @@ export default class PlannerBoardsPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded: unknown = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded as Partial<PlannerBoardsSettings>);
     if (!this.settings.calendar) {
       this.settings.calendar = { ...DEFAULT_CALENDAR_SETTINGS };
     }

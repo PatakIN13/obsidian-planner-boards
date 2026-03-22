@@ -17,8 +17,6 @@ export function renderCombo(
   // ── Multi-select mode: tags + "+" button ──
   if (col.multiSelect) {
     cell.classList.add('planner-cell-multiselect');
-    const tasks = (value || '').split('|').map(s => s.trim()).filter(Boolean);
-    const available = (col.options || []).filter(o => o && !tasks.includes(o));
 
     const tagsWrap = document.createElement('div');
     tagsWrap.className = 'planner-multi-tags';

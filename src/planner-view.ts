@@ -165,7 +165,7 @@ export class PlannerBoardsView extends ItemView {
 
     // Header
     const titleRow = this.headerEl.createDiv({ cls: 'planner-view-title-row' });
-    titleRow.createEl('h2', { text: '📋 Planner boards', cls: 'planner-hub-title' });
+    titleRow.createEl('h2', { text: 'Planner boards', cls: 'planner-hub-title' });
     const actions = titleRow.createDiv({ cls: 'planner-view-actions' });
     const refreshBtn = actions.createEl('button', { cls: 'planner-view-action-btn', title: t('ui.refresh') });
     setIcon(refreshBtn, 'refresh-cw');

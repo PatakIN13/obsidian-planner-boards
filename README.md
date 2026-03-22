@@ -1,202 +1,202 @@
-# Obsidian Planner Boards
+# Planner Boards
 
-Универсальный конструктор интерактивных планеров для [Obsidian](https://obsidian.md). Ежедневный планер — основная единица, недельный/месячный/годовой — динамические агрегаторы. Красивые таблицы-планеры с формулами, чекбоксами, прогресс-барами и автоматической синхронизацией.
+A universal interactive planner constructor for [Obsidian](https://obsidian.md). The daily planner is the core unit; weekly, monthly, and yearly views are dynamic aggregators. Beautiful planner tables with formulas, checkboxes, progress bars, and automatic synchronization.
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/github/v/release/PatakIN13/obsidian-planner-boards?label=version&color=blue)
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.0.0+-purple)
 
 ---
 
-## 📦 Установка
+## 📦 Installation
 
-1. Скопируйте три файла в папку vault:
+1. Copy three files into your vault:
    ```
    <vault>/.obsidian/plugins/planner-boards/
    ├── main.js
    ├── styles.css
    └── manifest.json
    ```
-2. **Настройки** → **Сторонние плагины** → включите **Planner Boards**
-3. В левой панели появится иконка 📋
+2. **Settings** → **Community plugins** → enable **Planner Boards**
+3. A 📋 icon will appear in the left ribbon
 
 ---
 
-## 🏗️ Архитектура
+## 🏗️ Architecture
 
-### Хаб (главная страница)
+### Hub (main page)
 
-Иконка 📋 в панели открывает Hub — единую точку входа:
+The 📋 icon in the ribbon opens the Hub — a single entry point:
 
-| Виджет | Описание |
-|--------|----------|
-| **📅 Календарь** | Полноценный месяц с навигацией ← Сегодня →. Цветные точки: 🟢 есть ежедневник, 🟠 есть финансы, 🔵 ICS-события. Клик по дню → открывает доску сразу на этот день |
-| **📊 Неделя** | Таблица Пн–Вс: задачи (3/5), привычки (2/4), доход, расход, баланс. Итоговая строка. Быстрая сводка задач и привычек сегодняшнего дня |
-| **📋 Доски** | Карточки всех досок с `show-on-main: true`. Клик → открыть доску |
+| Widget | Description |
+|--------|-------------|
+| **📅 Calendar** | Full month view with ← Today → navigation. Colored dots: 🟢 daily planner exists, 🟠 finance entry exists, 🔵 ICS events. Click a day → opens the board at that date |
+| **📊 Week** | Mon–Sun table: tasks (3/5), habits (2/4), income, expenses, balance. Summary row. Quick overview of today's tasks and habits |
+| **📋 Boards** | Cards for all boards with `show-on-main: true`. Click → open board |
 
-Данные агрегируются со **всех видимых досок** — если у вас несколько досок, хаб покажет общую картину.
+Data is aggregated from **all visible boards** — if you have multiple boards, the hub shows the combined picture.
 
-### Доска (Board)
+### Board
 
-Каждая доска — файл `.planner-board` в папке. Содержит **5 самостоятельных режимов** + настройки:
+Each board is a `.planner-board` file in a folder. It contains **5 independent modes** + settings:
 
-| Режим | Навигация | Дневные файлы | Описание |
-|-------|-----------|:---:|----------|
-| **📅 Планер** | Год → Месяц → Неделя → День | ✅ | Задачи, привычки, расписание, самочувствие, заметки. Дашборды на каждом уровне |
-| **💰 Финансы** | Год → Месяц → Неделя → День | ✅ | Доходы, расходы (постоянные/переменные), долги, накопления. Дашборды с итогами |
-| **🎯 Цели** | Год → Квартал → Месяц | — | Трекер целей со статусами и прогрессом |
-| **🚀 Проекты** | Год → Квартал → Месяц | — | Задачи проекта с приоритетами, исполнителями и дедлайнами |
-| **📖 Чтение** | Год → Квартал → Месяц | — | Книги, статьи, курсы — рейтинг, статус, заметки |
-| **⚙️ Настройки** | — | — | Основные, словари, шаблоны |
+| Mode | Navigation | Daily files | Description |
+|------|------------|:-----------:|-------------|
+| **📅 Planner** | Year → Month → Week → Day | ✅ | Tasks, habits, schedule, wellness, notes. Dashboards at every level |
+| **💰 Finance** | Year → Month → Week → Day | ✅ | Income, expenses (fixed/variable), debts, savings. Dashboards with totals |
+| **🎯 Goals** | Year → Quarter → Month | — | Goal tracker with statuses and progress |
+| **🚀 Projects** | Year → Quarter → Month | — | Project tasks with priorities, assignees, and deadlines |
+| **📖 Reading** | Year → Quarter → Month | — | Books, articles, courses — rating, status, notes |
+| **⚙️ Settings** | — | — | General, dictionaries, templates |
 
-### Иерархия навигации
+### Navigation hierarchy
 
 ```
-Год 2026
-├── Январь
-│   ├── Неделя 30.12 — 05.01
-│   │   ├── 2026-01-01 (ежедневник + финансы)
+Year 2026
+├── January
+│   ├── Week 30.12 — 05.01
+│   │   ├── 2026-01-01 (planner + finance)
 │   │   ├── 2026-01-02
 │   │   └── ...
-│   └── Неделя 06.01 — 12.01
+│   └── Week 06.01 — 12.01
 │       └── ...
-├── Февраль
+├── February
 │   └── ...
 └── ...
 ```
 
-- **Год/Месяц/Неделя** — динамические дашборды, собирают данные из дневных файлов
-- **День** — ежедневный файл (`.planner`), создаётся вручную, заполняется данными
+- **Year / Month / Week** — dynamic dashboards that aggregate data from daily files
+- **Day** — a daily file (`.planner`), created manually and filled with data
 
 ---
 
-## 📅 Планер — режим подробно
+## 📅 Planner — detailed
 
-### Ежедневный планер
+### Daily planner
 
-Создаётся через календарь в доске или кнопку «+ Создать день». Файл сохраняется:
+Created via the board calendar or the "+ Create day" button. File is saved to:
 ```
-<папка доски>/daily-planner/Январь 2026/2026-01-15.planner
+<board folder>/daily-planner/January 2026/2026-01-15.planner
 ```
 
-Содержит секции:
+Contains the following sections:
 
-| Секция | Описание |
-|--------|----------|
-| **Задачи на неделю** | Общие задачи с приоритетами (переносятся в рамках недели) |
-| **Задачи на день** | Задачи с приоритетами и чекбоксами |
-| **Привычки** | Чекбоксы привычек (настраиваются через шаблоны) |
-| **Расписание** | Временные слоты (08:00, 09:00, ...) |
-| **Самочувствие** | Оценки: настроение, энергия, сон, вода |
-| **Тренировки** | Тип, длительность, интенсивность |
-| **Заметки** | Свободный текст |
+| Section | Description |
+|---------|-------------|
+| **Weekly tasks** | Shared tasks with priorities (carried over within the week) |
+| **Daily tasks** | Tasks with priorities and checkboxes |
+| **Habits** | Habit checkboxes (configured via templates) |
+| **Schedule** | Time slots (08:00, 09:00, …) |
+| **Wellness** | Ratings: mood, energy, sleep, water |
+| **Workouts** | Type, duration, intensity |
+| **Notes** | Free-form text |
 
-### Дашборды (недельный, месячный, годовой)
+### Dashboards (weekly, monthly, yearly)
 
-Автоматически собирают данные из дневных файлов:
-- **Процент выполнения задач** и привычек
-- **Суммы** по расходам/доходам
-- **Тепловая карта** дней
-- **Средние показатели** самочувствия
-
----
-
-## 💰 Финансы — режим подробно
-
-### Ежедневные финансы
-
-Файл: `<папка доски>/daily-finance/Январь 2026/2026-01-15.planner`
-
-| Секция | Описание |
-|--------|----------|
-| **Доходы** | Категория, сумма, описание |
-| **Постоянные расходы** | Аренда, коммуналка, подписки |
-| **Переменные расходы** | Продукты, транспорт, развлечения |
-| **Долги** | Кредитор, платёж, статус |
-| **Накопления** | Цель, сумма |
-
-Добавление записей — через модальное окно (кнопки в шапке секций).
-
-### Финансовые дашборды
-
-- **Недельный**: таблица доходов/расходов по дням, итоги
-- **Месячный**: сводка по неделям, баланс
-- **Годовой**: сводка по месяцам, общая динамика
+Automatically aggregate data from daily files:
+- **Task and habit completion percentage**
+- **Expense / income totals**
+- **Day heat map**
+- **Average wellness scores**
 
 ---
 
-## 🎯 Цели / 🚀 Проекты / 📖 Чтение
+## 💰 Finance — detailed
 
-Эти режимы работают на уровне Год → Квартал → Месяц (без дневных файлов).
+### Daily finance
 
-| Режим | Колонки | Действия |
-|-------|---------|----------|
-| **Цели** | Цель, категория, статус, прогресс, дедлайн | Добавить/удалить через модальное окно |
-| **Проекты** | Задача, статус, приоритет, исполнитель, прогресс, дедлайн | Добавить/удалить через модальное окно |
-| **Чтение** | Название, автор, тип, статус, рейтинг, заметки | Добавить/удалить через модальное окно |
+File: `<board folder>/daily-finance/January 2026/2026-01-15.planner`
 
-Дашборды собирают статистику: сколько целей достигнуто, задач закрыто, книг прочитано.
+| Section | Description |
+|---------|-------------|
+| **Income** | Category, amount, description |
+| **Fixed expenses** | Rent, utilities, subscriptions |
+| **Variable expenses** | Groceries, transport, entertainment |
+| **Debts** | Creditor, payment, status |
+| **Savings** | Goal, amount |
 
----
+Records are added via a modal dialog (buttons in section headers).
 
-## ⚙️ Настройки доски
+### Finance dashboards
 
-Открываются через кнопку ⚙️ в шапке доски. Три вкладки:
-
-### Основные
-- Папки для шаблонов (daily-planner, daily-finance, goal-tracker, ...)
-- Формат имён файлов
-
-### Словари
-Динамические списки значений для выпадающих полей. Сгруппированы по режимам:
-
-| Группа | Словари |
-|--------|---------|
-| **Планер** | Категории, приоритеты (недельные и дневные) |
-| **Финансы** | Постоянные расходы, переменные расходы |
-| **Цели** | Статусы, категории |
-| **Проекты** | Статусы, приоритеты |
-| **Чтение** | Статусы |
-
-Изменения словарей применяются к **новым** файлам — существующие не затрагиваются.
-
-### Шаблоны
-Полноценные редактируемые превью шаблонов. Можно:
-- Заранее заполнить таблицу привычек
-- Настроить список кредиторов для финансов
-- Задать типовые задачи проекта
-
-Шаблон по умолчанию вставляется при создании нового дневного файла.
+- **Weekly**: income/expense table by day, totals
+- **Monthly**: summary by week, balance
+- **Yearly**: summary by month, overall trends
 
 ---
 
-## 📅 Синхронизация с онлайн-календарями (ICS)
+## 🎯 Goals / 🚀 Projects / 📖 Reading
 
-Плагин умеет читать ICS-фиды (Google Calendar, iCloud, Outlook):
+These modes operate at the Year → Quarter → Month level (no daily files).
 
-1. **Настройки плагина** → раздел «Календари» → добавьте ICS URL
-2. Назначьте цвет и имя для каждого источника
-3. События автообновляются (по умолчанию каждые 30 мин)
+| Mode | Columns | Actions |
+|------|---------|---------|
+| **Goals** | Goal, category, status, progress, deadline | Add / remove via modal |
+| **Projects** | Task, status, priority, assignee, progress, deadline | Add / remove via modal |
+| **Reading** | Title, author, type, status, rating, notes | Add / remove via modal |
 
-В хабе ICS-события отображаются:
-- Как 🔵 точки на днях в календаре
-- Списком «Сегодня» / «Завтра» под календарём
+Dashboards collect statistics: goals achieved, tasks completed, books read.
 
 ---
 
-## 📁 Структура файлов
+## ⚙️ Board settings
+
+Opened via the ⚙️ button in the board header. Three tabs:
+
+### General
+- Folders for templates (daily-planner, daily-finance, goal-tracker, …)
+- File naming format
+
+### Dictionaries
+Dynamic value lists for dropdown fields, grouped by mode:
+
+| Group | Dictionaries |
+|-------|--------------|
+| **Planner** | Categories, priorities (weekly and daily) |
+| **Finance** | Fixed expenses, variable expenses |
+| **Goals** | Statuses, categories |
+| **Projects** | Statuses, priorities |
+| **Reading** | Statuses |
+
+Dictionary changes apply to **new** files only — existing files are not affected.
+
+### Templates
+Full editable template previews. You can:
+- Pre-fill the habit table
+- Set up a creditor list for finance
+- Define default project tasks
+
+The default template is inserted when creating a new daily file.
+
+---
+
+## 📅 Online calendar sync (ICS)
+
+The plugin can read ICS feeds (Google Calendar, iCloud, Outlook):
+
+1. **Plugin settings** → "Calendars" section → add an ICS URL
+2. Assign a color and name for each source
+3. Events auto-refresh (every 30 min by default)
+
+In the hub, ICS events appear as:
+- 🔵 dots on calendar days
+- "Today" / "Tomorrow" lists below the calendar
+
+---
+
+## 📁 File structure
 
 ```
-Мой Планер/
-├── Planner Board.planner-board      ← файл доски (настройки, словари)
+My Planner/
+├── Planner Board.planner-board      ← board file (settings, dictionaries)
 ├── daily-planner/
-│   ├── Январь 2026/
+│   ├── January 2026/
 │   │   ├── 2026-01-01.planner
 │   │   ├── 2026-01-02.planner
 │   │   └── ...
-│   └── Февраль 2026/
+│   └── February 2026/
 │       └── ...
 ├── daily-finance/
-│   ├── Январь 2026/
+│   ├── January 2026/
 │   │   └── 2026-01-01.planner
 │   └── ...
 ├── goals/
@@ -209,28 +209,28 @@
 
 ---
 
-## 🎨 Темы оформления
+## 🎨 Themes
 
-В настройках плагина выберите тему по умолчанию:
+Select the default theme in plugin settings:
 
-| Тема | Описание |
-|------|----------|
-| `default` | Стандартная тема Obsidian |
-| `soft` | Мягкие пастельные тона |
-| `dark` | Тёмная контрастная |
-| `minimal` | Минималистичная |
-
----
-
-## 🌐 Локализация
-
-Плагин полностью переведён на русский и английский. Язык выбирается в настройках плагина.
+| Theme | Description |
+|-------|-------------|
+| `default` | Standard Obsidian theme |
+| `soft` | Soft pastel tones |
+| `dark` | Dark high-contrast |
+| `minimal` | Minimalist |
 
 ---
 
-## 🔧 Для разработчиков
+## 🌐 Localization
 
-### Сборка
+The plugin is fully translated into Russian and English. Language is selected in plugin settings.
+
+---
+
+## 🔧 For developers
+
+### Building
 
 ```bash
 npm install
@@ -238,38 +238,50 @@ npm run build    # → main.js
 npm run dev      # → watch mode
 ```
 
-### Шаблоны
+### Testing
 
-Шаблоны — TypeScript-функции в `src/templates/`. Каждый шаблон принимает YAML-схему и возвращает расширенную схему с секциями и столбцами.
+```bash
+npm test         # run unit tests
+npm run build    # production build
+npm run dev      # watch mode
+```
 
-Доступные шаблоны:
+### Templates
 
-| Ключ | Файл | Используется в |
-|------|------|---------------|
-| `daily-planner` | `daily-planner.ts` | Планер (день) |
-| `daily-finance` | `daily-finance.ts` | Финансы (день) |
-| `finance-planner` | `finance-planner.ts` | Финансы (месяц) |
-| `goal-tracker` | `goal-tracker.ts` | Цели |
-| `project-tracker` | `project-tracker.ts` | Проекты |
-| `reading-log` | `reading-log.ts` | Чтение |
+Templates are TypeScript functions in `src/templates/`. Each template takes a YAML schema and returns an extended schema with sections and columns.
 
-### Архитектура кода
+Available templates:
 
-| Файл | Описание |
-|------|----------|
-| `src/main.ts` | Точка входа плагина, команды, ribbon, регистрация view |
-| `src/planner-view.ts` | Hub/Dashboard — главная страница с календарём и агрегатором |
-| `src/single-planner-view.ts` | BoardView — основной view для `.planner-board` файлов (все 5 режимов + настройки) |
-| `src/settings.ts` | Настройки плагина (тема, язык, валюта, ICS-календари) |
-| `src/i18n.ts` | Русская и английская локализация |
-| `src/calendar/` | ICS-синхронизация, парсер, кэш |
-| `src/templates/` | Генераторы шаблонов |
-| `src/parser/` | YAML-парсер схем |
-| `src/engine/` | Движок рендеринга таблиц |
-| `src/renderers/` | Рендереры ячеек (чекбокс, прогресс-бар, multi-select, ...) |
+| Key | File | Used in |
+|-----|------|---------|
+| `daily-planner` | `daily-planner.ts` | Planner (day) |
+| `daily-finance` | `daily-finance.ts` | Finance (day) |
+| `finance-planner` | `finance-planner.ts` | Finance (month) |
+| `goal-tracker` | `goal-tracker.ts` | Goals |
+| `project-tracker` | `project-tracker.ts` | Projects |
+| `reading-log` | `reading-log.ts` | Reading |
+
+### Code architecture
+
+| File | Description |
+|------|-------------|
+| `src/main.ts` | Plugin entry point, commands, ribbon, view registration |
+| `src/planner-view.ts` | Hub / Dashboard — main page with calendar and aggregator |
+| `src/single-planner-view.ts` | BoardView — main view for `.planner-board` files (all 5 modes + settings) |
+| `src/settings.ts` | Plugin settings (theme, language, currency, ICS calendars) |
+| `src/i18n.ts` | Russian and English localization |
+| `src/calendar/` | ICS sync, parser, cache |
+| `src/templates/` | Template generators |
+| `src/parser/` | YAML schema parser |
+| `src/engine/` | Table rendering engine |
+| `src/renderers/` | Cell renderers (checkbox, progress bar, multi-select, …) |
 
 ---
 
-## 📄 Лицензия
+## 📄 License
 
 MIT
+
+---
+
+🇷🇺 Полностью поддерживает русский язык. Выберите язык в настройках плагина.

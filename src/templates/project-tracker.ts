@@ -37,7 +37,7 @@ export function expandProjectTracker(schema: PlannerSchema): PlannerSchema {
     progress: t['progress'] ?? 0,
   }));
 
-  const title = (schema.title as string) || `🚀 ${isRu ? 'Проект' : 'Project'}${schema['project'] ? ': ' + schema['project'] : ''}`;
+  const title = (schema.title as string) || `🚀 ${isRu ? 'Проект' : 'Project'}${schema['project'] ? ': ' + String(schema['project'] as string) : ''}`;
 
   return {
     type: 'grid',
